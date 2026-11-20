@@ -76,6 +76,10 @@ The world outline is an inline SVG path drawn in a simple equirectangular projec
 - Entries that show only a month are preliminary.
 - Microsoft Build and Microsoft Ignite 2027 dates and venues have not been announced by Microsoft.
 
+## Disclaimer
+
+This is an independent community project. It is not created, sponsored or endorsed by Microsoft, and it is not affiliated with Microsoft. Microsoft and the Microsoft logo are trademarks of the Microsoft group of companies, used here only to identify the events and products this calendar covers. All other names and logos belong to their respective owners.
+
 ## Contributing
 
 This is an open-source project, and corrections and additions are welcome. If an event is missing, has moved or has confirmed its dates, open an issue or send a pull request that edits the `EVENTS` array as described above.
