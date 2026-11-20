@@ -2,6 +2,10 @@
 
 A single-page calendar of 2027 Microsoft events, community conferences and regional summits across Dynamics 365, Power Platform, Microsoft 365, Fabric and Azure.
 
+**Live site: [ajansari.github.io/msevents](https://ajansari.github.io/msevents)**
+
+[![The 2027 Microsoft Community Calendar, showing the world map with conference pins above the filters and event table](assets/screenshot.png)](https://ajansari.github.io/msevents)
+
 Visitors can filter events by continent, country, city, month and type, see them pinned on a world map, and jump to each event's website or call for speakers.
 
 Created by AJ Ansari, Microsoft MVP ([onlycopilotfans.com](https://onlycopilotfans.com) · [onlybcfans.com](https://onlybcfans.com)).
@@ -18,7 +22,7 @@ Created by AJ Ansari, Microsoft MVP ([onlycopilotfans.com](https://onlycopilotfa
 
 The whole project is one file, [index.html](index.html), with no build step, dependencies or network requests. The styles, script, logos and world map are all inline.
 
-To view it, open `index.html` in a browser. To publish it, upload the file to any static host.
+To view it locally, open `index.html` in a browser. The live site at <https://ajansari.github.io/msevents> is served by GitHub Pages from this repository, and the file works on any other static host too.
 
 ## Updating the events
 
