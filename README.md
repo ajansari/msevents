@@ -22,7 +22,7 @@ Created by AJ Ansari, Microsoft MVP ([onlycopilotfans.com](https://onlycopilotfa
 
 The whole project is one file, [index.html](index.html), with no build step, dependencies or network requests. The styles, script, logos and world map are all inline.
 
-To view it locally, open `index.html` in a browser. The live site at <https://ajansari.github.io/msevents> is served by GitHub Pages from this repository, and the file works on any other static host too.
+To view it locally, open `index.html` in a browser. The live site at <https://ajansari.github.io/msevents> is deployed to GitHub Pages by the [Deploy site](.github/workflows/deploy-pages.yml) workflow whenever `main` changes. The file works on any other static host too.
 
 ## Updating the events
 
@@ -75,6 +75,40 @@ The world outline is an inline SVG path drawn in a simple equirectangular projec
 - All dates are for 2027 and are subject to change.
 - Entries that show only a month are preliminary.
 - Microsoft Build and Microsoft Ignite 2027 dates and venues have not been announced by Microsoft.
+
+## Automation: from issue to live event
+
+New events can be added without editing the file by hand. Two GitHub Copilot agents run in GitHub Actions on GitHub's runners:
+
+1. **Request:** anyone opens an issue, ideally with the **Add an event** form.
+2. **Approve:** a maintainer applies the `approved for build` label.
+3. **Build:** the **Event Builder** agent (Copilot Fusion · Standard) reads the whole issue thread, researches the event and adds it to `index.html` in date order. It looks up the dates, location, website, call for speakers, and whether it's a Conference or a Regional event. When the thread conflicts, the repository owner's latest comment is the final word.
+4. **Check:** the workflow runs the data validator and opens a pull request that closes the issue.
+5. **Review:** the **Event Reviewer** agent (Copilot Fusion · High) independently checks the change against the issue and the official sources, and posts a `PASS` or `CHANGES_REQUESTED` verdict on the PR.
+6. **Publish:** nothing goes live until a maintainer merges the PR. Merging runs the deploy workflow, which publishes the site to GitHub Pages.
+
+If the builder can't confirm enough to add an event, it asks its questions on the issue and adds the `needs info` label. To try again, reply on the issue and re-apply `approved for build`, or run the **Add event from issue** workflow manually with the issue number.
+
+| File | Purpose |
+|---|---|
+| [.github/workflows/add-event.yml](.github/workflows/add-event.yml) | Label-triggered build, validation, PR and review |
+| [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) | Validates and deploys the site to GitHub Pages on merge to `main` |
+| [.github/workflows/validate.yml](.github/workflows/validate.yml) | Validates event data on pull requests |
+| [.github/agents/event-builder.agent.md](.github/agents/event-builder.agent.md) | Event Builder agent instructions |
+| [.github/agents/event-reviewer.agent.md](.github/agents/event-reviewer.agent.md) | Event Reviewer agent instructions |
+| [.github/copilot-instructions.md](.github/copilot-instructions.md) | Data format, date and ordering rules shared by both agents |
+| [.github/scripts/validate-events.mjs](.github/scripts/validate-events.mjs) | Checks the event data parses, is well formed and is in date order |
+
+Run the validator locally with `node .github/scripts/validate-events.mjs`.
+
+### One-time setup
+
+The agents need a token to use Copilot:
+
+1. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) owned by your personal account. Under **Permissions → Account**, add **Copilot Requests**. No repository permissions are needed.
+2. Save it as the repository secret `COPILOT_GITHUB_TOKEN` (**Settings → Secrets and variables → Actions**, or `gh secret set COPILOT_GITHUB_TOKEN`).
+
+Copilot Fusion High (used by the reviewer) needs a Copilot plan that includes it; it isn't included on Free, Student or Pro. Copilot usage is billed to the token owner's Copilot plan.
 
 ## Disclaimer
 
