@@ -1,0 +1,65 @@
+# When Copilot finishes building an event PR (it requests a review from the repository owner),
+# ask Copilot to review that PR as the Event Reviewer before a human merges it.
+#
+# Only PRs that close an issue labelled "approved for build" are reviewed, and only once per PR.
+# The @copilot comment is posted with COPILOT_ASSIGN_TOKEN so it comes from the repository owner;
+# Copilot only acts on @copilot mentions from people with write access.
+
+name: Request event review
+
+on:
+  pull_request_target:          # runs the workflow from main; the PR's code is never checked out
+    types: [review_requested]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-event-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  request-review:
+    if: >-
+      startsWith(github.event.pull_request.head.ref, 'copilot/') &&
+      github.event.requested_reviewer.login == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      DECISION_MAKER: ${{ github.repository_owner }}
+    steps:
+      - name: Ask Copilot to review as the Event Reviewer
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"; repo="${GITHUB_REPOSITORY#*/}"
+          issues=$(gh api graphql -F owner="$owner" -F repo="$repo" -F n="$PR" -f query='
+            query($owner: String!, $repo: String!, $n: Int!) {
+              repository(owner: $owner, name: $repo) { pullRequest(number: $n) {
+                closingIssuesReferences(first: 10) { nodes { number labels(first: 30) { nodes { name } } } }
+              } }
+            }' --jq '[.data.repository.pullRequest.closingIssuesReferences.nodes[]
+                      | select(any(.labels.nodes[]; .name == "approved for build")) | "#\(.number)"] | join(", ")')
+          if [ -z "$issues" ]; then
+            echo "PR #$PR doesn't close an issue approved for build; nothing to do."; exit 0
+          fi
+
+          marker='<!-- event-reviewer-requested -->'
+          if gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq '.[].body' | grep -qF "$marker"; then
+            echo "The Event Reviewer was already requested on PR #$PR."; exit 0
+          fi
+
+          cat > comment.md <<EOF
+          @copilot Please now review this pull request as the **Event Reviewer**, before it goes live.
+
+          - Follow \`.github/agents/event-reviewer.agent.md\` and \`.github/copilot-instructions.md\` exactly.
+          - **Use Copilot Fusion at High effort for this review.** This is @$DECISION_MAKER's preference.
+          - Review independently: re-check every fact against the official sources rather than trusting the earlier build summary.
+          - The issue(s) this PR closes: $issues. @$DECISION_MAKER's most recent comment there is the final word.
+          - Finish with a reply that ends with \`VERDICT: PASS\` or \`VERDICT: CHANGES_REQUESTED\`.
+
+          $marker
+          EOF
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file comment.md
+          echo "Asked Copilot to review PR #$PR."

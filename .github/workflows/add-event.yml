@@ -1,13 +1,10 @@
-# Adds event(s) requested in an issue once a human applies the "approved for build" label.
+# When a human applies the "approved for build" label to an issue, assign the issue to the
+# GitHub Copilot cloud agent using the Event Builder custom agent (.github/agents/event-builder.agent.md).
+# Copilot works in GitHub's cloud on the repository's default model (Copilot Fusion) and opens a pull request.
+# review-event.yml then asks Copilot to review that PR as the Event Reviewer before anyone merges it.
 #
-#   1. Event Builder agent (Copilot CLI, Copilot Fusion · Standard) reads the issue thread,
-#      researches the event and edits index.html.
-#   2. The workflow validates the data and opens (or updates) a pull request.
-#   3. Event Reviewer agent (Copilot CLI, Copilot Fusion · High) reviews the change and posts a verdict.
-#   4. Nothing goes live until a human merges the PR; merging runs deploy-pages.yml.
-#
-# Requires the repository secret COPILOT_GITHUB_TOKEN: a fine-grained personal access token
-# with the "Copilot Requests" account permission (see README → Automation).
+# Requires the repository secret COPILOT_ASSIGN_TOKEN (see README → Automation → One-time setup).
+# Optional repository variable COPILOT_BUILD_MODEL: a model value for the API; leave unset to use the default (Fusion).
 
 name: Add event from issue
 
@@ -17,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       issue:
-        description: Issue number to build (re-runs the agents on that issue)
+        description: Issue number to (re)build
         required: true
         type: number
 
@@ -29,244 +26,67 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-review:
+  assign-to-copilot:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.label.name == 'approved for build' && github.event.sender.type == 'User')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
+      issues: write   # only for the failure comment; the assignment uses COPILOT_ASSIGN_TOKEN
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue }}
-      BRANCH: event/issue-${{ github.event.issue.number || inputs.issue }}
-      # The repository owner's latest comment is the final word when the issue thread conflicts.
       DECISION_MAKER: ${{ github.repository_owner }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      COPILOT_AUTO_UPDATE: "false"
-
+      MODEL: ${{ vars.COPILOT_BUILD_MODEL }}
     steps:
-      - name: Check the Copilot token is configured
+      - name: Check the token is configured
         env:
-          HAS_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN != '' }}
+          HAS_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN != '' }}
         run: |
           if [ "$HAS_TOKEN" != "true" ]; then
-            echo "::error::Add the COPILOT_GITHUB_TOKEN repository secret (fine-grained PAT with the 'Copilot Requests' permission)."
+            echo "::error::Add the COPILOT_ASSIGN_TOKEN repository secret (see README → Automation → One-time setup)."
             exit 1
           fi
 
-      - uses: actions/checkout@v7
-        with:
-          ref: main
-          persist-credentials: false   # the agents never get a token that can push
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: lts/*
-
-      - name: Install Copilot CLI
-        run: npm install -g @github/copilot
-
-      - name: Collect the issue thread
+      - name: Assign the issue to Copilot (Event Builder agent)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         run: |
-          AGENT_DIR="$RUNNER_TEMP/agent"
-          mkdir -p "$AGENT_DIR"
-          echo "AGENT_DIR=$AGENT_DIR" >> "$GITHUB_ENV"
-          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" \
-            --json number,title,body,author,createdAt,url,state,comments > "$AGENT_DIR/issue.json"
-          jq -r --arg dm "$DECISION_MAKER" '
-            def who(a): "@" + a.login + (if a.login == $dm then " (DECISION MAKER)" else "" end);
-            "# Issue #\(.number): \(.title)\n\nURL: \(.url)\n\n"
-            + "## Opened by \(who(.author)) at \(.createdAt)\n\n\(.body // "(no description)")\n"
-            + ([.comments[] | "\n---\n\n## Comment by \(who(.author)) at \(.createdAt)\n\n\(.body)\n"] | join(""))
-          ' "$AGENT_DIR/issue.json" > "$AGENT_DIR/issue.md"
-          echo "Collected $(jq '.comments | length' "$AGENT_DIR/issue.json") comment(s)."
+          # On a re-run, drop the earlier Copilot assignment so the new one starts a fresh session.
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$ISSUE/assignees" \
+            -f 'assignees[]=copilot-swe-agent[bot]' > /dev/null 2>&1 || true
 
-      - name: Tell the issue the build has started
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Labels this workflow applies; created on first use.
-          gh label create "needs info" --repo "$GITHUB_REPOSITORY" --color FBCA04 \
-            --description "The Event Builder needs more details before it can add this event" 2>/dev/null || true
-          gh label create "review: passed" --repo "$GITHUB_REPOSITORY" --color 0E8A16 \
-            --description "Event Reviewer agent passed this change" 2>/dev/null || true
-          gh label create "review: changes requested" --repo "$GITHUB_REPOSITORY" --color D93F0B \
-            --description "Event Reviewer agent requested changes" 2>/dev/null || true
-          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
-            "🛠️ **Event Builder** has started on this issue (Copilot Fusion · Standard). [Follow the run]($RUN_URL)."
+          instructions="Issue #$ISSUE was approved for build. Read the issue description and EVERY comment on it, oldest first.
+          The decision maker is @$DECISION_MAKER: their most recent comment is the final word when the thread conflicts.
+          Follow your Event Builder instructions and .github/copilot-instructions.md exactly.
+          Put 'Closes #$ISSUE' in the pull request description."
 
-      - name: Event Builder agent (Copilot Fusion · Standard)
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: |
-          copilot --agent event-builder \
-            --model fusion --fusion-tier standard \
-            --no-ask-user \
-            --add-dir "$AGENT_DIR" \
-            --allow-tool=read \
-            --allow-tool=write \
-            --allow-tool='shell(node .github/scripts/validate-events.mjs)' \
-            --allow-all-urls \
-            -p "You are running in GitHub Actions for issue #${ISSUE} of ${GITHUB_REPOSITORY}.
-          Agent folder: ${AGENT_DIR}
-          Decision maker: @${DECISION_MAKER}
-          Follow your agent instructions: read ${AGENT_DIR}/issue.md, research the event(s), edit index.html,
-          run 'node .github/scripts/validate-events.mjs' until it passes, and write ${AGENT_DIR}/summary.md."
+          jq -n --arg repo "$GITHUB_REPOSITORY" --arg instr "$instructions" --arg model "$MODEL" '{
+            assignees: ["copilot-swe-agent[bot]"],
+            agent_assignment: {
+              target_repo: $repo,
+              base_branch: "main",
+              custom_agent: "event-builder",
+              custom_instructions: $instr,
+              model: $model
+            }
+          }' > assignment.json
 
-      - name: Check the builder's result
-        id: result
-        run: |
-          if [ ! -s "$AGENT_DIR/summary.md" ]; then
-            echo "::error::The builder did not write summary.md."; exit 1
-          fi
-          status=$(head -n1 "$AGENT_DIR/summary.md" | tr -d '\r' | sed -n 's/^STATUS: \([A-Z_]*\).*/\1/p')
-          case "$status" in ADDED|UPDATED|NO_CHANGE|NEEDS_INFO) ;; *)
-            echo "::error::summary.md must start with a STATUS line (found: $(head -n1 "$AGENT_DIR/summary.md"))"; exit 1;;
+          assignees=$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$ISSUE/assignees" \
+            -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+            --input assignment.json --jq '[.assignees[].login] | join(",")')
+          echo "Assignees now: $assignees"
+          case "$assignees" in
+            *[Cc]opilot*) echo "Copilot is working on issue #$ISSUE. Follow it in the repository's Agents tab." ;;
+            *) echo "::error::Copilot was not assigned. Check the Copilot cloud agent is enabled for this repository and the token has the required permissions."; exit 1 ;;
           esac
-          echo "status=$status" >> "$GITHUB_OUTPUT"
 
-          others=$(git status --porcelain=v1 --untracked-files=all | cut -c4- | grep -vx 'index.html' || true)
-          if [ -n "$others" ]; then
-            echo "::error::The builder changed files other than index.html:"; echo "$others"; exit 1
-          fi
-          if [ "$status" = "ADDED" ] || [ "$status" = "UPDATED" ]; then
-            git diff --quiet -- index.html && { echo "::error::STATUS is $status but index.html is unchanged."; exit 1; }
-          else
-            git diff --quiet -- index.html || { echo "::error::STATUS is $status but index.html was changed."; exit 1; }
-          fi
-          echo "Builder status: $status"
-
-      - name: Report back when there is nothing to build
-        if: steps.result.outputs.status == 'NEEDS_INFO' || steps.result.outputs.status == 'NO_CHANGE'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          STATUS: ${{ steps.result.outputs.status }}
-        run: |
-          {
-            if [ "$STATUS" = "NEEDS_INFO" ]; then
-              echo "❓ **Event Builder needs more information before it can add this event.**"
-              echo
-              echo "Reply below, then remove and re-apply the \`approved for build\` label to try again."
-            else
-              echo "ℹ️ **No change needed.** The requested event(s) are already listed correctly."
-            fi
-            echo
-            tail -n +2 "$AGENT_DIR/summary.md"
-            echo
-            echo "<sub>[Workflow run]($RUN_URL)</sub>"
-          } > "$AGENT_DIR/comment.md"
-          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$AGENT_DIR/comment.md"
-          # Clear the label so re-applying it starts a new run.
-          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label "approved for build" || true
-          if [ "$STATUS" = "NEEDS_INFO" ]; then
-            gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label "needs info" || true
-          fi
-
-      - name: Validate the event data
-        if: steps.result.outputs.status == 'ADDED' || steps.result.outputs.status == 'UPDATED'
-        run: node .github/scripts/validate-events.mjs | tee "$AGENT_DIR/validation.txt"
-
-      - name: Commit and open the pull request
-        id: pr
-        if: steps.result.outputs.status == 'ADDED' || steps.result.outputs.status == 'UPDATED'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          title="Add event: $(jq -r .title "$AGENT_DIR/issue.json")"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$BRANCH"
-          git add index.html
-          git commit -m "$title" -m "Built by the Event Builder agent from #$ISSUE." -m "Closes #$ISSUE"
-          git diff -U5 HEAD~1 HEAD -- index.html > "$AGENT_DIR/changes.diff"
-          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
-
-          {
-            echo "Closes #$ISSUE"
-            echo
-            echo "## What the Event Builder did"
-            echo
-            tail -n +2 "$AGENT_DIR/summary.md"
-            echo
-            echo "---"
-            echo "Built by **Event Builder** (Copilot Fusion · Standard). **Event Reviewer** (Copilot Fusion · High) posts its review below."
-            echo "Nothing is published until this PR is merged. Merging deploys the site."
-            echo
-            echo "<sub>[Workflow run]($RUN_URL)</sub>"
-          } > "$AGENT_DIR/pr-body.md"
-
-          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
-          if [ -n "$pr" ]; then
-            gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$AGENT_DIR/pr-body.md"
-            gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "review: passed" --remove-label "review: changes requested" || true
-          else
-            url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
-                    --title "$title" --body-file "$AGENT_DIR/pr-body.md")
-            pr="${url##*/}"
-          fi
-          echo "number=$pr" >> "$GITHUB_OUTPUT"
-          echo "Pull request: #$pr"
-
-      - name: Event Reviewer agent (Copilot Fusion · High)
-        if: steps.pr.outputs.number != ''
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: |
-          copilot --agent event-reviewer \
-            --model fusion --fusion-tier high \
-            --no-ask-user \
-            --add-dir "$AGENT_DIR" \
-            --allow-tool=read \
-            --allow-tool=write \
-            --allow-all-urls \
-            -p "You are reviewing pull request #${{ steps.pr.outputs.number }} for issue #${ISSUE} of ${GITHUB_REPOSITORY}.
-          Agent folder: ${AGENT_DIR}
-          Decision maker: @${DECISION_MAKER}
-          Follow your agent instructions: review ${AGENT_DIR}/changes.diff against ${AGENT_DIR}/issue.md and the official sources,
-          using ${AGENT_DIR}/summary.md and ${AGENT_DIR}/validation.txt, and write ${AGENT_DIR}/review.md ending with the VERDICT line."
-
-      - name: Post the review
-        if: steps.pr.outputs.number != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ steps.pr.outputs.number }}
-        run: |
-          verdict=""
-          [ -s "$AGENT_DIR/review.md" ] && \
-            verdict=$(grep -E '^VERDICT: (PASS|CHANGES_REQUESTED)[[:space:]]*$' "$AGENT_DIR/review.md" | tail -n1 | awk '{print $2}')
-          {
-            echo "## 🔍 Event Reviewer (Copilot Fusion · High)"
-            echo
-            if [ -s "$AGENT_DIR/review.md" ]; then cat "$AGENT_DIR/review.md"
-            else echo "_The reviewer did not produce a review. Treat this PR as unreviewed._"; fi
-            echo
-            echo "<sub>[Workflow run]($RUN_URL)</sub>"
-          } > "$AGENT_DIR/review-comment.md"
-          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$AGENT_DIR/review-comment.md"
-
-          if [ "$verdict" = "PASS" ]; then
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "review: passed"
-            msg="✅ Pull request #$PR is ready. **Event Reviewer passed it.** Merge it to publish the event."
-          else
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "review: changes requested"
-            msg="⚠️ Pull request #$PR is open, but **Event Reviewer requested changes**. See its review on the PR. Fix the PR yourself, or comment here and re-run the build."
-          fi
-          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "$msg"
-
-          # The reviewer must not change the repository; anything it touched is discarded.
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "::warning::The reviewer modified files in the checkout; those changes were discarded."
-          fi
-
-      - name: Report a failed run
+      - name: Report a failed assignment
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
-            "❌ The event build failed. [See the workflow run]($RUN_URL) for details. Fix the cause, then remove and re-apply the \`approved for build\` label (or run the workflow manually with this issue number)." || true
+            "❌ Couldn't hand this issue to Copilot. [See the workflow run]($RUN_URL). Fix the cause, then remove and re-apply the \`approved for build\` label." || true

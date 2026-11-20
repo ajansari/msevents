@@ -78,20 +78,20 @@ The world outline is an inline SVG path drawn in a simple equirectangular projec
 
 ## Automation: from issue to live event
 
-New events can be added without editing the file by hand. Two GitHub Copilot agents run in GitHub Actions on GitHub's runners:
+New events can be added without editing the file by hand. The work is done by the **GitHub Copilot cloud agent** in GitHub's cloud on Copilot Fusion, using two custom agents. Your own computer isn't involved.
 
 1. **Request:** anyone opens an issue, ideally with the **Add an event** form.
 2. **Approve:** a maintainer applies the `approved for build` label.
-3. **Build:** the **Event Builder** agent (Copilot Fusion · Standard) reads the whole issue thread, researches the event and adds it to `index.html` in date order. It looks up the dates, location, website, call for speakers, and whether it's a Conference or a Regional event. When the thread conflicts, the repository owner's latest comment is the final word.
-4. **Check:** the workflow runs the data validator and opens a pull request that closes the issue.
-5. **Review:** the **Event Reviewer** agent (Copilot Fusion · High) independently checks the change against the issue and the official sources, and posts a `PASS` or `CHANGES_REQUESTED` verdict on the PR.
-6. **Publish:** nothing goes live until a maintainer merges the PR. Merging runs the deploy workflow, which publishes the site to GitHub Pages.
+3. **Build:** the [Add event from issue](.github/workflows/add-event.yml) workflow assigns the issue to Copilot with the **Event Builder** custom agent (Copilot Fusion · Standard, the github.com default). Copilot reads the whole issue thread and researches the event: dates, location, website, call for speakers, and whether it's a Conference or a Regional event. It then adds the event to `index.html` in date order, runs the data validator and opens a pull request. When the thread conflicts, the repository owner's latest comment is the final word.
+4. **Review:** when Copilot finishes and asks the owner for a review, the [Request event review](.github/workflows/review-event.yml) workflow posts an `@copilot` comment as the owner. That comment asks Copilot to review the PR as the **Event Reviewer** and to use Copilot Fusion · High. The reviewer re-checks every fact against the official sources, fixes clear-cut errors, and replies with `VERDICT: PASS` or `VERDICT: CHANGES_REQUESTED`.
+5. **Publish:** nothing goes live until a maintainer merges the PR. Merging runs the [Deploy site](.github/workflows/deploy-pages.yml) workflow, which validates the data and publishes to GitHub Pages.
 
-If the builder can't confirm enough to add an event, it asks its questions on the issue and adds the `needs info` label. To try again, reply on the issue and re-apply `approved for build`, or run the **Add event from issue** workflow manually with the issue number.
+You can follow both sessions in the repository's **Agents** tab. If the builder can't confirm enough to add an event, it says so in the PR description (`STATUS: NEEDS_INFO`) with its questions. Answer them on the issue, close that PR, and re-apply `approved for build`, or run **Add event from issue** manually with the issue number.
 
 | File | Purpose |
 |---|---|
-| [.github/workflows/add-event.yml](.github/workflows/add-event.yml) | Label-triggered build, validation, PR and review |
+| [.github/workflows/add-event.yml](.github/workflows/add-event.yml) | Assigns an approved issue to Copilot with the Event Builder agent |
+| [.github/workflows/review-event.yml](.github/workflows/review-event.yml) | Asks Copilot to review the finished PR as the Event Reviewer |
 | [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) | Validates and deploys the site to GitHub Pages on merge to `main` |
 | [.github/workflows/validate.yml](.github/workflows/validate.yml) | Validates event data on pull requests |
 | [.github/agents/event-builder.agent.md](.github/agents/event-builder.agent.md) | Event Builder agent instructions |
@@ -103,12 +103,12 @@ Run the validator locally with `node .github/scripts/validate-events.mjs`.
 
 ### One-time setup
 
-The agents need a token to use Copilot:
+1. **Token.** Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) owned by your account, with access to this repository only. Give it **Read** access to Metadata and **Read and write** access to Actions, Contents, Issues and Pull requests. Save it as the repository secret `COPILOT_ASSIGN_TOKEN` (**Settings → Secrets and variables → Actions**). It assigns issues to Copilot and posts the review request as you, because Copilot only takes work from people with write access.
+2. **Web access for Copilot.** Copilot's cloud firewall blocks most of the internet by default, which would stop it researching event sites. In **Settings → Copilot → Cloud agent** (internet access), either turn the firewall off for this repository or add the event sites you want it to reach to the allowlist.
+3. **Pages.** In **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**.
+4. **Copilot's workflow runs.** If GitHub asks you to approve workflow runs on Copilot's pull requests, approve them, or allow Copilot's workflows to run without approval in the Copilot cloud agent settings.
 
-1. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) owned by your personal account. Under **Permissions → Account**, add **Copilot Requests**. No repository permissions are needed.
-2. Save it as the repository secret `COPILOT_GITHUB_TOKEN` (**Settings → Secrets and variables → Actions**, or `gh secret set COPILOT_GITHUB_TOKEN`).
-
-Copilot Fusion High (used by the reviewer) needs a Copilot plan that includes it; it isn't included on Free, Student or Pro. Copilot usage is billed to the token owner's Copilot plan.
+The model comes from the github.com default (Copilot Fusion · Standard). To pin a specific model value for the build, set the repository variable `COPILOT_BUILD_MODEL`. GitHub doesn't currently document a way to set Fusion's effort level when assigning work through the API, so the reviewer's "High" is requested in its instructions and may not be honoured.
 
 ## Disclaimer
 
