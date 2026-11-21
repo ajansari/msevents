@@ -1,16 +1,22 @@
-# Moves Copilot's event PRs from "built" to "ready to merge":
-#   1. When Copilot finishes building, ask Copilot to review the PR as the Event Reviewer.
-#   2. When the reviewer replies "VERDICT: PASS", take the PR out of draft and label it "review: passed".
-#      On "VERDICT: CHANGES_REQUESTED" it stays a draft and is labelled "review: changes requested".
-# Nothing is merged automatically: merging stays a human decision.
+# Takes Copilot's event pull requests from "built" to "ready to merge". It never merges.
 #
-# Runs when a "Copilot cloud agent" session finishes, every 10 minutes (runs triggered by Copilot's
-# sessions can be held for approval, so the timer is what makes this reliable), or by hand for one PR.
-# It only looks at open Copilot PRs (branches named copilot/...) that close an issue labelled
-# "approved for build".
+#   check  (no secrets)  Runs main's validator on each PR's index.html. It also proves the PR changes
+#                        only the event data, compared with the commit it branched from. The result is
+#                        recorded as the commit status "event-checks".
+#   act    (owner token) .github/scripts/review-event-pr.sh moves each PR along:
+#                        build finished → ask Copilot to review it as the Event Reviewer →
+#                        on VERDICT: PASS (and event-checks passing) take it out of draft, label it
+#                        "review: passed" and record the commit status "event-review" for that commit.
+#                        New commits after a verdict mean a new review.
 #
-# Uses COPILOT_ASSIGN_TOKEN so the @copilot comment comes from the repository owner;
-# Copilot only acts on @copilot mentions from people with write access.
+# Starts:
+#   - when add-event.yml's follow-up job sees a Copilot session finish (the main trigger; it starts
+#     this workflow itself, so it isn't held for approval)
+#   - when a "Copilot cloud agent" run completes (often held for approval, so not relied on)
+#   - every 10 minutes as a backup
+#   - by hand
+# Works whether the build was started with the "approved for build" label or by assigning the issue to
+# Copilot directly.
 
 name: Request event review
 
@@ -34,106 +40,190 @@ concurrency:
   group: review-event
   cancel-in-progress: false
 
-jobs:
-  request-review:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      DECISION_MAKER: ${{ github.repository_owner }}
-      ONLY_PR: ${{ inputs.pr }}
-    steps:
-      - name: Check the token is configured
-        env:
-          HAS_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN != '' }}
-        run: |
-          [ "$HAS_TOKEN" = "true" ] || { echo "::error::Add the COPILOT_ASSIGN_TOKEN repository secret."; exit 1; }
+defaults:
+  run:
+    shell: bash   # adds -o pipefail
 
-      - name: Request reviews and act on verdicts
+jobs:
+  labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      issues: write
+    steps:
+      - name: Create the labels the automation uses
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          have=$(gh label list --repo "$GITHUB_REPOSITORY" --limit 200 --json name --jq '.[].name')
+          while IFS='|' read -r name color desc; do
+            grep -qxF "$name" <<<"$have" || gh label create "$name" --repo "$GITHUB_REPOSITORY" --color "$color" --description "$desc"
+          done <<'EOF'
+          event request|1D76DB|Suggested event, from the Add an event form
+          approved for build|0E8A16|A maintainer approved this event; Copilot builds it
+          review: passed|0E8A16|Event Reviewer passed this PR; ready to merge
+          review: changes requested|D93F0B|Event Reviewer asked for changes
+          review: checks failed|D93F0B|Automated event checks failed
+          review: stalled|B60205|Automation stopped; needs a human
+          needs info|FBCA04|Copilot couldn't confirm enough to build this
+          EOF
+
+  check:
+    needs: labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      statuses: write
+    outputs:
+      prs: ${{ steps.find.outputs.prs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Find event pull requests and fetch their files
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          ONLY_PR: ${{ inputs.pr }}
+        run: |
+          mkdir -p prs
+          # Open Copilot PRs from this repository, opened under the owner's name (Copilot works as the
+          # person who assigned it).
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 50 \
+            --json number,headRefName,headRefOid,isCrossRepository,author \
+            --jq ".[] | select((.headRefName | startswith(\"copilot/\")) and (.isCrossRepository | not)
+                               and .author.login == \"$OWNER\") | \"\(.number) \(.headRefOid)\"" > candidates.txt
+          if [ -n "$ONLY_PR" ]; then grep "^$ONLY_PR " candidates.txt > c2.txt || true; mv c2.txt candidates.txt; fi
+
+          found=()
+          while read -r pr sha; do
+            [ -n "$pr" ] || continue
+            d="prs/$pr"; mkdir -p "$d"
+            gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" \
+              --jq '{base: .merge_base_commit.sha, files: [.files[].filename]}' > "$d/compare.json"
+            issue_labels=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F repo="${GITHUB_REPOSITORY#*/}" -F n="$pr" -f query='
+              query($owner: String!, $repo: String!, $n: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $n) {
+                closingIssuesReferences(first: 10) { nodes { number labels(first: 30) { nodes { name } } } } } } }' \
+              --jq '[.data.repository.pullRequest.closingIssuesReferences.nodes[] | {number, labels: [.labels.nodes[].name]}]')
+            echo "$issue_labels" > "$d/issues.json"
+
+            # An event PR closes an issue marked as an event, or changes nothing but index.html.
+            is_event=$(jq -n --slurpfile c "$d/compare.json" --argjson i "$issue_labels" '
+              ($i | any(.labels | index("approved for build") or index("event request")))
+              or ($c[0].files == ["index.html"])')
+            if [ "$is_event" != "true" ]; then echo "PR #$pr is not an event PR; ignoring."; rm -rf "$d"; continue; fi
+
+            echo "$sha" > "$d/sha"
+            if jq -e '.files | index("index.html")' "$d/compare.json" > /dev/null; then
+              base=$(jq -r .base "$d/compare.json")
+              gh api "repos/$GITHUB_REPOSITORY/contents/index.html?ref=$sha"  -H "Accept: application/vnd.github.raw" > "$d/head.html"
+              gh api "repos/$GITHUB_REPOSITORY/contents/index.html?ref=$base" -H "Accept: application/vnd.github.raw" > "$d/base.html"
+            fi
+            found+=("$pr")
+          done < candidates.txt
+          echo "prs=$(printf '%s\n' "${found[@]}" | jq -R . | jq -sc 'map(select(. != ""))')" >> "$GITHUB_OUTPUT"
+          echo "Event PRs: ${found[*]:-none}"
+
+      # No token in this step: it runs main's validator on the pull request's content.
+      - name: Validate each pull request
+        run: |
+          for d in prs/*/; do
+            [ -d "$d" ] || continue
+            d="${d%/}"
+            files=$(jq -c .files "$d/compare.json")
+            if [ "$files" = "[]" ]; then
+              echo "empty" > "$d/state"; echo "Copilot made no changes" > "$d/detail"
+            elif [ "$files" != '["index.html"]' ]; then
+              echo "failure" > "$d/state"; echo "Changes files other than index.html: $(jq -r '.files | join(", ")' "$d/compare.json")" > "$d/detail"
+            elif out=$(node .github/scripts/validate-events.mjs "$d/head.html" --base "$d/base.html" 2>&1); then
+              echo "success" > "$d/state"; echo "$out" | head -1 | sed 's|^✓ [^:]*: |✓ |' > "$d/detail"
+            else
+              echo "failure" > "$d/state"; echo "$out" | sed "s|$d/||g" > "$d/detail"
+            fi
+            echo "PR ${d}: $(cat "$d/state")"; cat "$d/detail"
+          done
+
+      - name: Record the result as a commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for d in prs/*/; do
+            [ -d "$d" ] || continue
+            sha=$(cat "$d/sha"); state=$(cat "$d/state"); [ "$state" = "empty" ] && state=failure
+            desc=$(head -c 135 "$d/detail" | tr '\n' ' ')
+            current=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/statuses" \
+                        --jq '[.[] | select(.context == "event-checks")][0] | "\(.state)|\(.description)"')
+            [ "$current" = "$state|$desc" ] && continue
+            gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$sha" -f state="$state" -f context="event-checks" \
+              -f description="$desc" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > /dev/null
+          done
+
+      - uses: actions/upload-artifact@v7
+        if: steps.find.outputs.prs != '[]'
+        with:
+          name: event-checks
+          path: prs/
+          retention-days: 3
+
+  act:
+    needs: check
+    if: needs.check.outputs.prs != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: event-checks
+          path: prs/
+
+      - name: Check the owner token works
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         run: |
-          owner="${GITHUB_REPOSITORY%/*}"; repo="${GITHUB_REPOSITORY#*/}"
-          marker='<!-- event-reviewer-requested -->'
-          PASSED='review: passed'; CHANGES='review: changes requested'
+          [ -n "$GH_TOKEN" ] || { echo "::error::Add the COPILOT_ASSIGN_TOKEN repository secret."; exit 1; }
+          gh api user --jq .login > /dev/null || { echo "::error::COPILOT_ASSIGN_TOKEN is expired or invalid."; exit 1; }
 
-          if [ -n "$ONLY_PR" ]; then
-            prs="$ONLY_PR"
-          else
-            prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 50 \
-                    --json number,headRefName --jq '.[] | select(.headRefName | startswith("copilot/")) | .number')
-          fi
-          [ -n "$prs" ] || { echo "No open Copilot pull requests."; exit 0; }
-
-          gh label create "$PASSED"  --repo "$GITHUB_REPOSITORY" --color 0E8A16 --description "Event Reviewer passed this PR" 2>/dev/null || true
-          gh label create "$CHANGES" --repo "$GITHUB_REPOSITORY" --color D93F0B --description "Event Reviewer asked for changes" 2>/dev/null || true
-
-          for pr in $prs; do
+      - name: Move each pull request along
+        env:
+          OWNER_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+          BOT_TOKEN: ${{ github.token }}
+          DECISION_MAKER: ${{ github.repository_owner }}
+          PRS: ${{ needs.check.outputs.prs }}
+        run: |
+          failed=0
+          for pr in $(jq -r '.[]' <<<"$PRS"); do
             echo "::group::PR #$pr"
-
-            # Only PRs that close an issue approved for build.
-            issues=$(gh api graphql -F owner="$owner" -F repo="$repo" -F n="$pr" -f query='
-              query($owner: String!, $repo: String!, $n: Int!) {
-                repository(owner: $owner, name: $repo) { pullRequest(number: $n) {
-                  closingIssuesReferences(first: 10) { nodes { number labels(first: 30) { nodes { name } } } }
-                } }
-              }' --jq '[.data.repository.pullRequest.closingIssuesReferences.nodes[]
-                        | select(any(.labels.nodes[]; .name == "approved for build")) | "#\(.number)"] | join(", ")')
-            if [ -z "$issues" ]; then echo "Doesn't close an issue approved for build; skipping."; echo "::endgroup::"; continue; fi
-
-            # Only while Copilot isn't working on it (building or reviewing).
-            last=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/timeline" --paginate \
-                     --jq '.[] | select(.event == "copilot_work_started" or .event == "copilot_work_finished") | .event' | tail -n1)
-            if [ "$last" != "copilot_work_finished" ]; then
-              echo "Copilot is still working (last event: ${last:-none}); checking again later."; echo "::endgroup::"; continue
-            fi
-
-            comments=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" --paginate \
-                         --jq '.[] | {u: .user.login, t: .created_at, b: .body}' | jq -s '.')
-            asked=$(jq -r --arg m "$marker" '[.[] | select(.b | contains($m)) | .t] | last // ""' <<<"$comments")
-
-            # Step 1: build finished, review not yet requested.
-            if [ -z "$asked" ]; then
-              cat > comment.md <<EOF
-          @copilot Please now review this pull request as the **Event Reviewer**, before it goes live.
-
-          - Follow \`.github/agents/event-reviewer.agent.md\` and \`.github/copilot-instructions.md\` exactly.
-          - **Use Copilot Fusion at High effort for this review.** This is @$DECISION_MAKER's preference.
-          - Review independently: re-check every fact against the official sources rather than trusting the earlier build summary.
-          - The issue(s) this PR closes: $issues. @$DECISION_MAKER's most recent comment there is the final word.
-          - Finish with a reply that ends with \`VERDICT: PASS\` or \`VERDICT: CHANGES_REQUESTED\`.
-
-          $marker
-          EOF
-              gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file comment.md
-              echo "Asked Copilot to review PR #$pr."; echo "::endgroup::"; continue
-            fi
-
-            # Step 2: review requested; act on Copilot's latest verdict after the request.
-            # The verdict must be on a line of its own, so a quoted copy of the request doesn't count.
-            verdict=$(jq -r --arg after "$asked" '[.[] | select(.u == "Copilot" and .t > $after) | .b | split("\n")[] | sub("\\s+$"; "")
-                        | select(test("^VERDICT: (PASS|CHANGES_REQUESTED)$")) | ltrimstr("VERDICT: ")] | last // ""' <<<"$comments")
-            state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json isDraft,labels \
-                      --jq '"\(.isDraft) \([.labels[].name] | join(","))"')
-            draft="${state%% *}"; labels="${state#* }"
-
-            case "$verdict" in
-              PASS)
-                gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "$PASSED" > /dev/null
-                case ",$labels," in *",$CHANGES,"*) gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "$CHANGES" > /dev/null ;; esac
-                if [ "$draft" = "true" ]; then
-                  gh pr ready "$pr" --repo "$GITHUB_REPOSITORY"
-                  echo "Review passed: PR #$pr is ready to merge."
-                else
-                  echo "Review passed; PR #$pr is already out of draft."
-                fi ;;
-              CHANGES_REQUESTED)
-                case ",$labels," in
-                  *",$CHANGES,"*) echo "Changes already flagged on PR #$pr." ;;
-                  *) gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "$CHANGES" > /dev/null
-                     case ",$labels," in *",$PASSED,"*) gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "$PASSED" > /dev/null ;; esac
-                     echo "Review asked for changes on PR #$pr; it stays a draft." ;;
-                esac ;;
-              *) echo "Review requested; no verdict yet." ;;
-            esac
+            bash -eo pipefail .github/scripts/review-event-pr.sh "$pr" "prs/$pr" || { echo "::error::PR #$pr: step failed"; failed=1; }
             echo "::endgroup::"
           done
+          exit $failed
+
+      - name: Open an issue if the automation is broken
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Event automation needs attention"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          [ -n "$open" ] && { echo "Already reported in #$open."; exit 0; }
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body \
+            "The **Request event review** workflow failed: $RUN_URL
+
+          The usual cause is that the \`COPILOT_ASSIGN_TOKEN\` secret has expired. Create a new token with the same permissions (README → Automation → One-time setup), update the secret, and close this issue. Until then, event PRs are not reviewed or marked ready."

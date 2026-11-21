@@ -289,6 +289,9 @@ const MONTH_ORDER = ["January","February","March","April","May","June","July",
 const F = {cont:"f-continent", country:"f-country", city:"f-city", m:"f-month", t:"f-type"};
 const LABEL = {cont:"All continents", country:"All countries", city:"All cities", m:"All months", t:"All types"};
 const el = id => document.getElementById(id);
+// Event data is inserted into HTML, so escape it; links must be http(s).
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const href = u => /^https?:\/\//i.test(u) ? esc(u) : "#";
 
 const PIN = c => `<svg width="22" height="28" viewBox="0 0 22 28"><path d="M11 27S2 16.6 2 10.5a9 9 0 0 1 18 0C20 16.6 11 27 11 27z" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="11" cy="10.5" r="3.2" fill="#fff"/></svg>`;
 const WORLD = {w:-128, e:158, n:68, s:-42};   // default view, degrees
@@ -341,9 +344,9 @@ function drawMap(list){
       if (wasOn) return;
       p.classList.add("on");
       const pop = el("pop");
-      pop.innerHTML = `<div class="pop-city">${evs[0].loc}</div>` + evs.map(e =>
-        `<div class="pop-ev"><b>${e.d}</b> · ${e.url
-          ? `<a href="${e.url}" target="_blank" rel="noopener">${e.n}</a>` : e.n}</div>`).join("");
+      pop.innerHTML = `<div class="pop-city">${esc(evs[0].loc)}</div>` + evs.map(e =>
+        `<div class="pop-ev"><b>${esc(e.d)}</b> · ${e.url
+          ? `<a href="${href(e.url)}" target="_blank" rel="noopener">${esc(e.n)}</a>` : esc(e.n)}</div>`).join("");
       pop.style.display = "block";
       const pw = pop.offsetWidth, ph = pop.offsetHeight;
       pop.style.left = Math.max(8, Math.min(W - pw - 8, x - pw / 2)) + "px";
@@ -380,7 +383,7 @@ function buildSelects(){
   for (const k in F){
     const sel = el(F[k]), current = sel.value, vals = optionsFor(k);
     sel.innerHTML = `<option value="">${LABEL[k]}</option>` +
-      vals.map(v => `<option value="${v}">${v}</option>`).join("");
+      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
     sel.value = (current && vals.includes(current)) ? current : "";
   }
 }
@@ -389,15 +392,15 @@ function render(){
   const list = EVENTS.filter(ev => matches(ev, activeFilters(null)));
   el("rows").innerHTML = list.length ? list.map(ev => `
     <div class="row">
-      <div class="date${ev.d === "TBA" ? " tba" : ""}">${ev.d}</div>
+      <div class="date${ev.d === "TBA" ? " tba" : ""}">${esc(ev.d)}</div>
       <div class="name">${ev.url
-        ? `<a class="ev" href="${ev.url}" target="_blank" rel="noopener">${ev.n}</a>
-           <a class="ext" href="${ev.url}" target="_blank" rel="noopener" aria-label="Open ${ev.n} website">${EXT_ICON}</a>`
-        : `<span class="plain">${ev.n}</span>`}
-        ${ev.tag ? `<span class="tag">${ev.tag}</span>` : ""}</div>
-      <div><span class="chip ${ev.t.toLowerCase()}">${ev.t}</span></div>
-      <div class="city${ev.city === "TBA" ? " tba" : ""}">${ev.loc}</div>
-      <div>${ev.cfs ? `<a class="cfs" href="${ev.cfs}" target="_blank" rel="noopener">Speak →</a>` : ""}</div>
+        ? `<a class="ev" href="${href(ev.url)}" target="_blank" rel="noopener">${esc(ev.n)}</a>
+           <a class="ext" href="${href(ev.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(ev.n)} website">${EXT_ICON}</a>`
+        : `<span class="plain">${esc(ev.n)}</span>`}
+        ${ev.tag ? `<span class="tag">${esc(ev.tag)}</span>` : ""}</div>
+      <div><span class="chip ${ev.t === "Conference" ? "conference" : "regional"}">${esc(ev.t)}</span></div>
+      <div class="city${ev.city === "TBA" ? " tba" : ""}">${esc(ev.loc)}</div>
+      <div>${ev.cfs ? `<a class="cfs" href="${href(ev.cfs)}" target="_blank" rel="noopener">Speak →</a>` : ""}</div>
     </div>`).join("")
     : `<div class="empty">No events match these filters.</div>`;
   el("count").textContent = `${list.length} of ${EVENTS.length} events`;

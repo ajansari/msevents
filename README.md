@@ -78,37 +78,62 @@ The world outline is an inline SVG path drawn in a simple equirectangular projec
 
 ## Automation: from issue to live event
 
-New events can be added without editing the file by hand. The work is done by the **GitHub Copilot cloud agent** in GitHub's cloud on Copilot Fusion, using two custom agents. Your own computer isn't involved.
+New events can be added without editing the file by hand. The work is done by the **GitHub Copilot cloud agent** in GitHub's cloud, using two custom agents. Your own computer isn't involved, and the only human steps are approving the issue and merging the result.
 
-1. **Request:** anyone opens an issue, ideally with the **Add an event** form.
-2. **Approve:** a maintainer applies the `approved for build` label.
-3. **Build:** the [Add event from issue](.github/workflows/add-event.yml) workflow assigns the issue to Copilot with the **Event Builder** custom agent (Copilot Fusion · Standard, the github.com default). Copilot reads the whole issue thread and researches the event: dates, location, website, call for speakers, and whether it's a Conference or a Regional event. It then adds the event to `index.html` in date order, runs the data validator and opens a pull request. When the thread conflicts, the repository owner's latest comment is the final word.
-4. **Review:** when Copilot finishes and asks the owner for a review, the [Request event review](.github/workflows/review-event.yml) workflow posts an `@copilot` comment as the owner. That comment asks Copilot to review the PR as the **Event Reviewer** and to use Copilot Fusion · High. The reviewer re-checks every fact against the official sources, fixes clear-cut errors, and replies with `VERDICT: PASS` or `VERDICT: CHANGES_REQUESTED`. The same workflow checks every 10 minutes. On `PASS` it takes the PR out of draft and labels it `review: passed`. On `CHANGES_REQUESTED` it labels it `review: changes requested` and leaves it as a draft.
-5. **Publish:** nothing goes live until a maintainer merges the PR. Merging runs the [Deploy site](.github/workflows/deploy-pages.yml) workflow, which validates the data and publishes to GitHub Pages.
+1. **Request:** anyone opens an issue, ideally with the **Add an event** form, which labels it `event request`.
+2. **Approve:** a maintainer applies the `approved for build` label. This is the recommended way to start a build. Alternatively, assign the issue to Copilot by hand (**Assignees → Copilot**) and pick the **Event Builder** agent; the rest of the pipeline works the same.
+3. **Build:** the [Add event from issue](.github/workflows/add-event.yml) workflow assigns the issue to Copilot with the **Event Builder** custom agent.
+   - Copilot reads the whole issue thread. When it conflicts, the repository owner's latest comment is the final word.
+   - It researches the dates, location, website and call for speakers, and decides whether it's a Conference or a Regional event.
+   - It adds the event to `index.html` in date order, runs the validator and opens a draft pull request.
+4. **Check:** the [Request event review](.github/workflows/review-event.yml) workflow runs `main`'s validator on the pull request, with no secrets available. It also confirms that only the event data in `index.html` changed and that no value carries markup or a non-https link. The result appears on the PR as the `event-checks` status.
+5. **Review:** each time a Copilot session finishes, the build workflow's follow-up job starts **Request event review**. A 10-minute schedule is the backup. The workflow posts an `@copilot` comment as the owner, asking Copilot to hand the review to the **Event Reviewer** agent. The reviewer re-checks every fact against the official sources, fixes clear-cut errors, and replies with an `## Event Reviewer report` that ends in `VERDICT: PASS` or `VERDICT: CHANGES_REQUESTED`.
+6. **Ready:** what happens next depends on the verdict:
+   - **`PASS`, with `event-checks` passing:** the PR leaves draft, is labelled `review: passed` and gets the `event-review` status.
+   - **`CHANGES_REQUESTED`:** the PR stays a draft, is labelled `review: changes requested`, and you're notified. Reply `@copilot` with what to change. Copilot's new commits are reviewed again automatically.
+   - **Commits pushed after any verdict:** they always trigger a fresh review.
+7. **Publish:** nothing goes live until a maintainer merges the PR. Merging runs the [Deploy site](.github/workflows/deploy-pages.yml) workflow, which validates the data and publishes to GitHub Pages.
 
-You can follow both sessions in the repository's **Agents** tab. If the builder can't confirm enough to add an event, it says so in the PR description (`STATUS: NEEDS_INFO`) with its questions. Answer them on the issue, close that PR, and re-apply `approved for build`, or run **Add event from issue** manually with the issue number.
+The automation labels anything it can't finish:
+
+| Label | Meaning |
+|---|---|
+| `needs info` | Copilot couldn't confirm enough to add the event, so it made no change. Answer its questions on the issue, close the PR and re-apply `approved for build`. |
+| `review: checks failed` | The reviewer passed the PR but the automated checks didn't. The reviewer is asked to fix them. |
+| `review: stalled` | A Copilot session ran for more than 90 minutes, or three review requests produced no usable verdict. Look at the **Agents** tab, then remove the label to let the automation try again. |
+
+Re-applying `approved for build` while a Copilot PR for the issue is still open does nothing, so you don't get duplicates. To rebuild anyway, run **Add event from issue** with **force** ticked. If the automation itself breaks, for example because the token expired, it opens an issue titled *Event automation needs attention*.
 
 | File | Purpose |
 |---|---|
-| [.github/workflows/add-event.yml](.github/workflows/add-event.yml) | Assigns an approved issue to Copilot with the Event Builder agent |
-| [.github/workflows/review-event.yml](.github/workflows/review-event.yml) | Asks Copilot to review the finished PR as the Event Reviewer |
+| [.github/workflows/add-event.yml](.github/workflows/add-event.yml) | Assigns an approved issue to Copilot with the Event Builder agent, then starts the review each time a Copilot session finishes |
+| [.github/workflows/review-event.yml](.github/workflows/review-event.yml) | Checks event PRs, requests the Event Reviewer and acts on its verdict |
+| [.github/scripts/review-event-pr.sh](.github/scripts/review-event-pr.sh) | The steps that move one PR from built to ready |
 | [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) | Validates and deploys the site to GitHub Pages on merge to `main` |
 | [.github/workflows/validate.yml](.github/workflows/validate.yml) | Validates event data on pull requests |
 | [.github/agents/event-builder.agent.md](.github/agents/event-builder.agent.md) | Event Builder agent instructions |
 | [.github/agents/event-reviewer.agent.md](.github/agents/event-reviewer.agent.md) | Event Reviewer agent instructions |
-| [.github/copilot-instructions.md](.github/copilot-instructions.md) | Data format, date and ordering rules shared by both agents |
-| [.github/scripts/validate-events.mjs](.github/scripts/validate-events.mjs) | Checks the event data parses, is well formed and is in date order |
+| [.github/copilot-instructions.md](.github/copilot-instructions.md) | Data format, date, ordering and safety rules shared by both agents |
+| [.github/scripts/validate-events.mjs](.github/scripts/validate-events.mjs) | Checks the event data is plain, safe, well formed and in date order (and, with `--base`, that nothing else changed) |
 
 Run the validator locally with `node .github/scripts/validate-events.mjs`.
 
 ### One-time setup
 
-1. **Token.** Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) owned by your account, with access to this repository only. Give it **Read** access to Metadata and **Read and write** access to Actions, Contents, Issues and Pull requests. Save it as the repository secret `COPILOT_ASSIGN_TOKEN` (**Settings → Secrets and variables → Actions**). It assigns issues to Copilot and posts the review request as you, because Copilot only takes work from people with write access.
-2. **Web access for Copilot.** Copilot's cloud firewall blocks most of the internet by default, which would stop it researching event sites. In **Settings → Copilot → Cloud agent** (internet access), either turn the firewall off for this repository or add the event sites you want it to reach to the allowlist.
+1. **Token.** Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) owned by your account, with access to this repository only.
+   - Permissions: **Read** for Metadata, **Read and write** for Actions, Contents, Issues and Pull requests.
+   - Save it as the repository secret `COPILOT_ASSIGN_TOKEN` (**Settings → Secrets and variables → Actions**).
+   - It assigns issues to Copilot and posts the review request as you, because Copilot only takes work from people with write access.
+   - Note its expiry date. When it expires, the automation opens an issue telling you to replace it.
+2. **Web access for Copilot.** Copilot's cloud firewall blocks most of the internet by default, which would stop it researching event sites. In **Settings → Copilot → Cloud agent** (internet access), either turn the firewall off for this repository or add the event sites you want it to reach to the allowlist. The allowlist is safer, because with the firewall off Copilot reads any page an issue points it to.
 3. **Pages.** In **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**.
-4. **Copilot's workflow runs.** If GitHub asks you to approve workflow runs on Copilot's pull requests, approve them, or allow Copilot's workflows to run without approval in the Copilot cloud agent settings.
+4. **Protect `main` (recommended).** In **Settings → Rules → Rulesets**, add a branch ruleset for `main` with **Require a pull request before merging** (0 approvals) and **Block force pushes**. Leave the bypass list empty. Then neither the token nor anyone else can push to `main` without a pull request. Before you merge an event PR, check that its `event-checks` status is green.
 
-The model comes from the github.com default (Copilot Fusion · Standard). To pin a specific model value for the build, set the repository variable `COPILOT_BUILD_MODEL`. GitHub doesn't currently document a way to set Fusion's effort level when assigning work through the API, so the reviewer's "High" is requested in its instructions and may not be honoured.
+You don't need to approve Copilot's own workflow runs; the pipeline doesn't depend on them.
+
+GitHub turns off scheduled workflows in public repositories after 60 days without activity. The schedule is only a backup, but if **Request event review** shows as disabled under **Actions**, enable it again.
+
+**Models.** Copilot's cloud agent uses your github.com default model. GitHub doesn't document a way to choose the model or Fusion's effort level for a review requested in a PR comment, so the reviewer's "Fusion · High" is requested in writing and may not be honoured. The review also runs on the same model setting as the build. To check which model a session used, open it in the **Agents** tab. To pin a model for the build, set the repository variable `COPILOT_BUILD_MODEL`, or assign the issue by hand and choose the model there.
 
 ## Disclaimer
 

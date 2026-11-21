@@ -58,9 +58,26 @@ Insert each event so `EVENTS` stays sorted by start date:
 
 When in doubt, follow how the same organiser's other events are classified in the file, and say in your summary why you chose the type.
 
+## Safe values
+
+The page builds HTML from these values, so the validator rejects:
+
+- any field containing `<`, `>`, `"`, a backtick or a control character. Write names as plain text; drop or reword characters like these.
+- a `url` or `cfs` that isn't a plain `https://` address.
+- anything in the data block other than plain data: no comments, function calls, template strings or single-quoted strings.
+
+An event pull request may only change the data block. Automation rejects any change elsewhere in `index.html`, or to any other file.
+
 ## Checking your work
 
-Run `node .github/scripts/validate-events.mjs` after editing. It must print a line starting with `✓`. It checks the data parses, required fields, date formats, `m` matching `d`, map coordinates, duplicates and date order.
+Run `node .github/scripts/validate-events.mjs` after editing. It must print a line starting with `✓`. It checks:
+
+- the data block is plain data
+- required fields and safe values
+- date formats, and that `m` matches `d`
+- map coordinates
+- duplicates
+- date order
 
 ## Accuracy
 

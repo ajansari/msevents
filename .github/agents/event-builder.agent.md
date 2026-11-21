@@ -37,7 +37,7 @@ Only modify `index.html`. Do not create, rename or delete any other file in the 
 
 ## Pull request description
 
-Write the pull request description in this shape:
+Write the pull request description in this shape. Keep it in this shape when you update the description at the end of your session:
 
 - First line: `Closes #<issue number>`
 - A line with exactly one of: `STATUS: ADDED`, `STATUS: UPDATED`, `STATUS: NO_CHANGE` or `STATUS: NEEDS_INFO`

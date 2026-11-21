@@ -1,6 +1,7 @@
 name: Add an event
 description: Suggest a Microsoft or community event for the 2027 calendar
 title: "Add event: "
+labels: ["event request"]
 body:
   - type: markdown
     attributes:
