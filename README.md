@@ -19,7 +19,7 @@ Created by AJ Ansari, Microsoft MVP ([onlycopilotfans.com](https://onlycopilotfa
 - **Responsive layout** that works on phones as well as desktops.
 - **Build Your Own 2027 Conference Calendar**: visitors build a personal calendar and take it with them. The panel is collapsed until they open it.
   - Each event has **Going** and **Maybe** buttons. Clicking the active one again clears it.
-  - Entering a name titles the calendar, for example "Bob Johnson's 2027 Conference Calendar".
+  - Entering a name titles the calendar, for example "Helen Ray's 2027 Conference Calendar".
   - **Save as PDF** opens the browser's print window with a print layout on a white background, in Letter or A4, with clean page breaks.
   - **Download web page** saves the same calendar as one self-contained HTML file.
   - Both can include or skip the map, and list events by date or as Going first, then Maybe.
