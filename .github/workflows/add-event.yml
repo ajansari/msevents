@@ -1,42 +1,55 @@
-# When a human applies the "approved for build" label to an issue, assign the issue to the
-# GitHub Copilot cloud agent using the Event Builder custom agent (.github/agents/event-builder.agent.md).
-# Copilot works in GitHub's cloud on the repository's default model (Copilot Fusion) and opens a pull request.
-# review-event.yml then asks Copilot to review that PR as the Event Reviewer before anyone merges it.
+# Starts the Event Builder and keeps the pipeline moving until the Event Reviewer's verdict is in.
+#
+#   assign  When a human applies the "approved for build" label, assign the issue to the GitHub Copilot
+#           cloud agent with the Event Builder custom agent (.github/agents/event-builder.agent.md).
+#   follow  When Copilot is assigned to an issue, whether by "assign" or by hand (Assignees → Copilot),
+#           watch its pull request. Each time a Copilot session on it finishes, start
+#           review-event.yml, which requests the Event Reviewer and acts on its verdict. This job starts
+#           that workflow itself, so the hand-off isn't held for approval like runs started by Copilot.
 #
 # Requires the repository secret COPILOT_ASSIGN_TOKEN (see README → Automation → One-time setup).
-# Optional repository variable COPILOT_BUILD_MODEL: a model value for the API; leave unset to use the default (Fusion).
+# Optional repository variable COPILOT_BUILD_MODEL: a model value for the API; leave unset to use the default.
 
 name: Add event from issue
 
 on:
   issues:
-    types: [labeled]
+    types: [labeled, assigned]
   workflow_dispatch:
     inputs:
       issue:
         description: Issue number to (re)build
         required: true
         type: number
+      force:
+        description: Build even if the issue is closed or already has an open Copilot pull request
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-concurrency:
-  group: add-event-${{ github.event.issue.number || inputs.issue }}
-  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash   # adds -o pipefail
 
 jobs:
-  assign-to-copilot:
+  assign:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.label.name == 'approved for build' && github.event.sender.type == 'User')
+      (github.event.action == 'labeled' && github.event.label.name == 'approved for build' && github.event.sender.type == 'User')
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    concurrency:
+      group: add-event-assign-${{ github.event.issue.number || inputs.issue }}
+      cancel-in-progress: true
     permissions:
       contents: read
-      issues: write   # only for the failure comment; the assignment uses COPILOT_ASSIGN_TOKEN
+      issues: write   # only for notices; the assignment uses COPILOT_ASSIGN_TOKEN
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      FORCE: ${{ inputs.force || false }}
       DECISION_MAKER: ${{ github.repository_owner }}
       MODEL: ${{ vars.COPILOT_BUILD_MODEL }}
     steps:
@@ -49,7 +62,29 @@ jobs:
             exit 1
           fi
 
+      - name: Don't build twice
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json state --jq .state)
+          open_prs=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F repo="${GITHUB_REPOSITORY#*/}" -F n="$ISSUE" -f query='
+            query($owner: String!, $repo: String!, $n: Int!) { repository(owner: $owner, name: $repo) { issue(number: $n) {
+              closedByPullRequestsReferences(first: 10, includeClosedPrs: false) { nodes { number state headRefName } } } } }' \
+            --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[]
+                   | select(.state == "OPEN" and (.headRefName | startswith("copilot/"))) | "#\(.number)"] | join(", ")')
+          reason=""
+          [ "$state" != "OPEN" ] && reason="the issue is closed"
+          [ -n "$open_prs" ] && reason="Copilot's pull request $open_prs for it is still open"
+          if [ -n "$reason" ] && [ "$FORCE" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+              "ℹ️ Not starting a new build: $reason. To rebuild, close that pull request (or reopen the issue) and re-apply \`approved for build\`, or run **Add event from issue** with **force** ticked."
+            echo "Skipped: $reason"
+          fi
+
       - name: Assign the issue to Copilot (Event Builder agent)
+        if: steps.guard.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         run: |
@@ -64,13 +99,12 @@ jobs:
 
           jq -n --arg repo "$GITHUB_REPOSITORY" --arg instr "$instructions" --arg model "$MODEL" '{
             assignees: ["copilot-swe-agent[bot]"],
-            agent_assignment: {
+            agent_assignment: ({
               target_repo: $repo,
               base_branch: "main",
               custom_agent: "event-builder",
-              custom_instructions: $instr,
-              model: $model
-            }
+              custom_instructions: $instr
+            } + (if $model != "" then {model: $model} else {} end))
           }' > assignment.json
 
           assignees=$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$ISSUE/assignees" \
@@ -89,4 +123,59 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
-            "❌ Couldn't hand this issue to Copilot. [See the workflow run]($RUN_URL). Fix the cause, then remove and re-apply the \`approved for build\` label." || true
+            "❌ Couldn't hand this issue to Copilot. [See the workflow run]($RUN_URL). The usual cause is an expired \`COPILOT_ASSIGN_TOKEN\`. Fix the cause, then remove and re-apply the \`approved for build\` label." || true
+
+  follow:
+    if: github.event.action == 'assigned' && contains(github.event.assignee.login, 'opilot')
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    concurrency:
+      group: add-event-follow-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      statuses: read
+      actions: write    # to start review-event.yml
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+    steps:
+      - name: Start the review each time a Copilot session finishes
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"; repo="${GITHUB_REPOSITORY#*/}"
+          declare -A seen
+          started=$(date +%s)
+          while [ $(( $(date +%s) - started )) -lt $(( 280 * 60 )) ]; do
+            sleep 60
+            data=$(gh api graphql -F owner="$owner" -F repo="$repo" -F n="$ISSUE" -f query='
+              query($owner: String!, $repo: String!, $n: Int!) { repository(owner: $owner, name: $repo) { issue(number: $n) {
+                state
+                closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { number state headRefName headRefOid } } } } }') \
+              || { echo "::warning::GitHub API call failed; retrying."; continue; }
+            prs=$(jq -c '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.headRefName | startswith("copilot/"))]' <<<"$data")
+            if [ "$(jq length <<<"$prs")" = 0 ]; then
+              [ "$(jq -r .data.repository.issue.state <<<"$data")" = "OPEN" ] || { echo "Issue closed with no Copilot PR."; exit 0; }
+              continue   # Copilot hasn't opened its pull request yet
+            fi
+            jq -e 'all(.[]; .state != "OPEN")' <<<"$prs" > /dev/null && { echo "Copilot's pull request is merged or closed; done."; exit 0; }
+
+            for row in $(jq -r '.[] | select(.state == "OPEN") | "\(.number):\(.headRefOid)"' <<<"$prs"); do
+              pr="${row%%:*}"; sha="${row#*:}"
+              last=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/timeline" --paginate \
+                       --jq '[.[] | select(.event // "" | startswith("copilot_work"))] | .[] | "\(.event)@\(.created_at)"' | tail -n1) || continue
+              case "$last" in ""|copilot_work_started@*) continue ;; esac
+              if [ "${seen[$pr]}" != "$last|$sha" ]; then
+                seen[$pr]="$last|$sha"
+                echo "PR #$pr: Copilot finished ($last); starting the review workflow."
+                gh workflow run review-event.yml --repo "$GITHUB_REPOSITORY" --ref main
+              fi
+              decided=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/statuses" --jq '[.[] | select(.context == "event-review")][0].state // ""')
+              case "$decided" in
+                success) echo "PR #$pr passed review and is ready to merge; done."; exit 0 ;;
+                failure) echo "PR #$pr: the reviewer asked for changes. The 10-minute schedule takes it from here."; exit 0 ;;
+              esac
+            done
+          done
+          echo "Stopped watching after 280 minutes; the 10-minute schedule in review-event.yml carries on."

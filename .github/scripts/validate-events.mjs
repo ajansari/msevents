@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 // Checks the event data in index.html: it still parses, every entry is well formed,
 // every city has map coordinates, and the list is in date order.
-// Usage: node .github/scripts/validate-events.mjs [path/to/index.html]
+// Usage: node .github/scripts/validate-events.mjs [path/to/index.html] [--base path/to/base/index.html]
+//   --base: also fail if anything outside the data block differs from the base file
+//           (used to prove an event pull request changes event data only).
 
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const file = process.argv[2] || "index.html";
+const args = process.argv.slice(2);
+const baseAt = args.indexOf("--base");
+const baseFile = baseAt >= 0 ? args.splice(baseAt, 2)[1] : null;
+const file = args[0] || "index.html";
 const html = readFileSync(file, "utf8");
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
@@ -27,6 +32,28 @@ const start = html.indexOf("const ROADSHOW");
 const end = html.indexOf("const EXT_ICON");
 if (start < 0 || end < 0 || end < start) {
   fail(["Could not find the data block (from `const ROADSHOW` to `const EXT_ICON`). Keep those markers in place."]);
+}
+
+if (baseFile) {
+  const base = readFileSync(baseFile, "utf8");
+  const bs = base.indexOf("const ROADSHOW"), be = base.indexOf("const EXT_ICON");
+  if (bs < 0 || be < bs) fail([`${baseFile}: could not find the data block in the base file.`]);
+  if (html.slice(0, start) !== base.slice(0, bs) || html.slice(end) !== base.slice(be)) {
+    fail(["Changes outside the event data block (from `const ROADSHOW` to `const EXT_ICON`) are not allowed in an event pull request."]);
+  }
+}
+
+// The block must be plain data: double-quoted strings, numbers, [ ] { } : , = ; and a few names.
+// Checking this before evaluating it means nothing in it can run code.
+{
+  const code = html.slice(start, end).replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
+  const NAMES = new Set(["const", "true", "false", "d", "m", "n", "t", "city", "loc", "country", "cont", "url", "cfs", "tag"]);
+  const bad = [];
+  if (/[()`'\\$]|\/\*|\/\//.test(code)) bad.push("only double-quoted strings and plain values are allowed (found ( ) ` ' \\ $ or a comment)");
+  for (const w of code.match(/[A-Za-z_][A-Za-z0-9_]*/g) || []) {
+    if (!NAMES.has(w) && !/^[A-Z][A-Z0-9_]*$/.test(w)) { bad.push(`unexpected name "${w}"`); break; }
+  }
+  if (bad.length) fail(bad.map(b => `The data block must contain data only: ${b}.`));
 }
 
 let EVENTS, COORDS;
@@ -78,10 +105,16 @@ EVENTS.forEach((ev, i) => {
   if (!TYPES.includes(ev.t)) problems.push(`${at}: t must be "Conference" or "Regional" (found "${ev.t}")`);
   if (!CONTINENTS.includes(ev.cont)) problems.push(`${at}: cont "${ev.cont}" is not one of ${CONTINENTS.join(", ")}`);
 
+  for (const k of ["d", "m", "n", "t", "city", "loc", "country", "cont", "url", "cfs", "tag"]) {
+    if (ev[k] === undefined) continue;
+    if (typeof ev[k] !== "string") { problems.push(`${at}: "${k}" must be a string`); continue; }
+    if (/[<>"`\u0000-\u001f]/.test(ev[k])) problems.push(`${at}: "${k}" must not contain < > " \` or control characters`);
+  }
+
   for (const k of ["url", "cfs"]) {
     if (ev[k] === undefined) continue;
-    try { const u = new URL(ev[k]); if (!/^https?:$/.test(u.protocol)) throw 0; }
-    catch { problems.push(`${at}: ${k} "${ev[k]}" is not a valid http(s) URL`); }
+    try { const u = new URL(ev[k]); if (u.protocol !== "https:" || /\s/.test(ev[k])) throw 0; }
+    catch { problems.push(`${at}: ${k} "${ev[k]}" is not a valid https URL`); }
   }
 
   const tba = ev.city === "TBA";
