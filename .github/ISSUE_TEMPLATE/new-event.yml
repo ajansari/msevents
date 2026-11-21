@@ -1,0 +1,41 @@
+name: Add an event
+description: Suggest a Microsoft or community event for the 2027 calendar
+title: "Add event: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an event! Fill in what you know; leave the rest blank.
+        Once a maintainer approves it, an agent researches the details and opens a pull request.
+  - type: input
+    id: name
+    attributes:
+      label: Event name
+      placeholder: e.g. DynamicsCon 2027
+    validations:
+      required: true
+  - type: input
+    id: website
+    attributes:
+      label: Event website
+      placeholder: https://
+  - type: input
+    id: dates
+    attributes:
+      label: Dates (if known)
+      placeholder: e.g. May 17–20, 2027, or "sometime in June"
+  - type: input
+    id: location
+    attributes:
+      label: City and country (if known)
+      placeholder: e.g. Las Vegas, USA
+  - type: input
+    id: cfs
+    attributes:
+      label: Call for speakers link (if any)
+      placeholder: https://sessionize.com/...
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Who it's for, whether it's a full conference or a regional event, corrections to an existing entry, etc.

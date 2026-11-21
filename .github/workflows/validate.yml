@@ -1,0 +1,22 @@
+# Checks the event data on pull requests that change the site.
+
+name: Validate events
+
+on:
+  pull_request:
+    paths:
+      - index.html
+      - .github/scripts/validate-events.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - run: node .github/scripts/validate-events.mjs
