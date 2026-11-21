@@ -1,11 +1,15 @@
-# When Copilot finishes building an event PR, ask Copilot to review it as the Event Reviewer
-# before a human merges it.
+# Moves Copilot's event PRs from "built" to "ready to merge":
+#   1. When Copilot finishes building, ask Copilot to review the PR as the Event Reviewer.
+#   2. When the reviewer replies "VERDICT: PASS", take the PR out of draft and label it "review: passed".
+#      On "VERDICT: CHANGES_REQUESTED" it stays a draft and is labelled "review: changes requested".
+# Nothing is merged automatically: merging stays a human decision.
 #
-# Starts when a "Copilot cloud agent" session finishes, hourly as a fallback, or by hand for one PR.
-# Each run looks at open Copilot PRs (branches named copilot/...) that close an issue labelled
-# "approved for build", where Copilot has finished working, and requests the review once per PR.
+# Runs when a "Copilot cloud agent" session finishes, every 10 minutes (runs triggered by Copilot's
+# sessions can be held for approval, so the timer is what makes this reliable), or by hand for one PR.
+# It only looks at open Copilot PRs (branches named copilot/...) that close an issue labelled
+# "approved for build".
 #
-# The @copilot comment is posted with COPILOT_ASSIGN_TOKEN so it comes from the repository owner;
+# Uses COPILOT_ASSIGN_TOKEN so the @copilot comment comes from the repository owner;
 # Copilot only acts on @copilot mentions from people with write access.
 
 name: Request event review
@@ -15,11 +19,11 @@ on:
     workflows: ["Copilot cloud agent"]
     types: [completed]
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       pr:
-        description: Pull request number to review (leave empty to check all open Copilot PRs)
+        description: Pull request number to check (leave empty to check all open Copilot PRs)
         required: false
         type: string
 
@@ -44,12 +48,13 @@ jobs:
         run: |
           [ "$HAS_TOKEN" = "true" ] || { echo "::error::Add the COPILOT_ASSIGN_TOKEN repository secret."; exit 1; }
 
-      - name: Ask Copilot to review finished event PRs
+      - name: Request reviews and act on verdicts
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         run: |
           owner="${GITHUB_REPOSITORY%/*}"; repo="${GITHUB_REPOSITORY#*/}"
           marker='<!-- event-reviewer-requested -->'
+          PASSED='review: passed'; CHANGES='review: changes requested'
 
           if [ -n "$ONLY_PR" ]; then
             prs="$ONLY_PR"
@@ -58,6 +63,9 @@ jobs:
                     --json number,headRefName --jq '.[] | select(.headRefName | startswith("copilot/")) | .number')
           fi
           [ -n "$prs" ] || { echo "No open Copilot pull requests."; exit 0; }
+
+          gh label create "$PASSED"  --repo "$GITHUB_REPOSITORY" --color 0E8A16 --description "Event Reviewer passed this PR" 2>/dev/null || true
+          gh label create "$CHANGES" --repo "$GITHUB_REPOSITORY" --color D93F0B --description "Event Reviewer asked for changes" 2>/dev/null || true
 
           for pr in $prs; do
             echo "::group::PR #$pr"
@@ -72,19 +80,20 @@ jobs:
                         | select(any(.labels.nodes[]; .name == "approved for build")) | "#\(.number)"] | join(", ")')
             if [ -z "$issues" ]; then echo "Doesn't close an issue approved for build; skipping."; echo "::endgroup::"; continue; fi
 
-            # Only once per PR.
-            if gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" --paginate --jq '.[].body' | grep -qF "$marker"; then
-              echo "Review already requested; skipping."; echo "::endgroup::"; continue
-            fi
-
-            # Only after Copilot has finished its build session.
+            # Only while Copilot isn't working on it (building or reviewing).
             last=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/timeline" --paginate \
                      --jq '.[] | select(.event == "copilot_work_started" or .event == "copilot_work_finished") | .event' | tail -n1)
             if [ "$last" != "copilot_work_finished" ]; then
-              echo "Copilot is still working (last event: ${last:-none}); skipping for now."; echo "::endgroup::"; continue
+              echo "Copilot is still working (last event: ${last:-none}); checking again later."; echo "::endgroup::"; continue
             fi
 
-            cat > comment.md <<EOF
+            comments=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" --paginate \
+                         --jq '.[] | {u: .user.login, t: .created_at, b: .body}' | jq -s '.')
+            asked=$(jq -r --arg m "$marker" '[.[] | select(.b | contains($m)) | .t] | last // ""' <<<"$comments")
+
+            # Step 1: build finished, review not yet requested.
+            if [ -z "$asked" ]; then
+              cat > comment.md <<EOF
           @copilot Please now review this pull request as the **Event Reviewer**, before it goes live.
 
           - Follow \`.github/agents/event-reviewer.agent.md\` and \`.github/copilot-instructions.md\` exactly.
@@ -95,7 +104,36 @@ jobs:
 
           $marker
           EOF
-            gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file comment.md
-            echo "Asked Copilot to review PR #$pr."
+              gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file comment.md
+              echo "Asked Copilot to review PR #$pr."; echo "::endgroup::"; continue
+            fi
+
+            # Step 2: review requested; act on Copilot's latest verdict after the request.
+            # The verdict must be on a line of its own, so a quoted copy of the request doesn't count.
+            verdict=$(jq -r --arg after "$asked" '[.[] | select(.u == "Copilot" and .t > $after) | .b | split("\n")[] | sub("\\s+$"; "")
+                        | select(test("^VERDICT: (PASS|CHANGES_REQUESTED)$")) | ltrimstr("VERDICT: ")] | last // ""' <<<"$comments")
+            state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json isDraft,labels \
+                      --jq '"\(.isDraft) \([.labels[].name] | join(","))"')
+            draft="${state%% *}"; labels="${state#* }"
+
+            case "$verdict" in
+              PASS)
+                gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "$PASSED" > /dev/null
+                case ",$labels," in *",$CHANGES,"*) gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "$CHANGES" > /dev/null ;; esac
+                if [ "$draft" = "true" ]; then
+                  gh pr ready "$pr" --repo "$GITHUB_REPOSITORY"
+                  echo "Review passed: PR #$pr is ready to merge."
+                else
+                  echo "Review passed; PR #$pr is already out of draft."
+                fi ;;
+              CHANGES_REQUESTED)
+                case ",$labels," in
+                  *",$CHANGES,"*) echo "Changes already flagged on PR #$pr." ;;
+                  *) gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "$CHANGES" > /dev/null
+                     case ",$labels," in *",$PASSED,"*) gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "$PASSED" > /dev/null ;; esac
+                     echo "Review asked for changes on PR #$pr; it stays a draft." ;;
+                esac ;;
+              *) echo "Review requested; no verdict yet." ;;
+            esac
             echo "::endgroup::"
           done
