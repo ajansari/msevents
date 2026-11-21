@@ -42,9 +42,9 @@
   .gh:hover{color:var(--violet);border-color:var(--violet)}
   .gh svg{display:block;flex:none}
 
-  #map{position:relative;height:420px;margin:26px 0 8px;border-radius:20px;
+  #map{position:relative;height:420px;margin:26px 0 8px;border:1px solid #DDD6FE;border-radius:20px;
        box-shadow:0 18px 50px -24px rgba(15,23,42,.28),0 0 0 1px rgba(15,23,42,.04)}
-  #map svg.world{position:absolute;inset:0;width:100%;height:100%;border-radius:20px;background:#E6EDF9;display:block}
+  #map svg.world{position:absolute;inset:0;width:100%;height:100%;border-radius:19px;background:#E6EDF9;display:block}
   #map svg.world path{fill:#fff;stroke:#C3CEDF;stroke-width:.7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
   .pin{position:absolute;width:22px;height:28px;padding:0;border:0;background:none;cursor:pointer;
        transform:translate(-50%,-100%);transform-origin:50% 100%;transition:transform .12s ease;
@@ -149,8 +149,8 @@
   .btn:hover{color:var(--violet);border-color:var(--violet)}
   .btn.primary{background:var(--violet);border-color:var(--violet);color:#fff}
   .btn.primary:hover{background:#6D28D9;border-color:#6D28D9;color:#fff}
-  .btn.quiet{border-color:transparent;background:none;color:var(--muted)}
-  .btn.quiet:hover{color:var(--rose);border-color:transparent}
+  .btn.solid{background:#0F172A;border-color:#0F172A;color:#fff}
+  .btn.solid:hover{background:#334155;border-color:#334155;color:#fff}
   .btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
   .btn:focus-visible,.pk:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(124,58,237,.3)}
   .mine-note{margin-top:10px;font-size:12px;color:#94A3B8}
@@ -190,7 +190,7 @@
     background:#FAF9FF;box-shadow:0 0 0 100vmax #FAF9FF;clip-path:inset(-100vmax -100vmax 0 -100vmax)}
   [data-theme="dark"] .theme .sun{display:block}
   [data-theme="dark"] .theme .moon{display:none}
-  [data-theme="dark"] #map{box-shadow:0 18px 50px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
+  [data-theme="dark"] #map{border-color:#3A2F6B;box-shadow:0 18px 50px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
   [data-theme="dark"] #map svg.world{background:#0F182B}
   [data-theme="dark"] #map svg.world path{fill:#222E47;stroke:#3B4B6B}
   [data-theme="dark"] #pop{background:#1A2338;box-shadow:0 12px 32px -8px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
@@ -211,7 +211,8 @@
   [data-theme="dark"] .btn{background:#0E1627}
   [data-theme="dark"] .btn.primary,[data-theme="dark"] .pk.going.on{background:var(--violet);color:#0B1120}
   [data-theme="dark"] .btn.primary:hover{background:#C4B5FD;border-color:#C4B5FD;color:#0B1120}
-  [data-theme="dark"] .btn.quiet{background:none}
+  [data-theme="dark"] .btn.solid{background:#E8ECF6;border-color:#E8ECF6;color:#0B1120}
+  [data-theme="dark"] .btn.solid:hover{background:#fff;border-color:#fff;color:#0B1120}
   [data-theme="dark"] .row.picked{background:linear-gradient(90deg,var(--violet-50),rgba(34,28,64,0) 55%)}
 
   @media(max-width:900px){
@@ -292,7 +293,7 @@
         <span class="mine-status" id="my-status" aria-live="polite"></span>
         <button class="btn primary" id="my-pdf" type="button">Save as PDF</button>
         <button class="btn" id="my-html" type="button">Download web page</button>
-        <button class="btn quiet" id="my-reset" type="button">Reset and Start Over</button>
+        <button class="btn solid" id="my-reset" type="button">Reset and Start Over</button>
       </div>
       <p class="mine-note">Save as PDF opens your browser's print window: choose "Save as PDF" there, or print it. Your picks are remembered in this browser only.</p>
     </div>
