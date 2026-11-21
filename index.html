@@ -107,11 +107,28 @@
   .tba{color:#94A3B8;font-weight:600}
 
   /* My calendar: the panel, and the Going / Maybe buttons on each row */
-  .mine{background:#fff;border-radius:22px;padding:22px 24px 20px;margin:0 0 26px;
+  .mine{background:#fff;border-radius:22px;margin:0 0 26px;
         box-shadow:0 18px 50px -24px rgba(15,23,42,.28),0 0 0 1px rgba(15,23,42,.04)}
-  .mine-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px 28px;flex-wrap:wrap}
-  .mine h2{font-size:22px;font-weight:800;letter-spacing:-.015em;line-height:1.2;overflow-wrap:anywhere}
-  .mine-sub{margin-top:6px;font-size:14px;color:var(--muted);max-width:560px}
+  .mine summary{display:flex;align-items:center;gap:12px 16px;padding:20px 24px;cursor:pointer;list-style:none;
+                border-radius:22px;-webkit-tap-highlight-color:transparent}
+  .mine summary::-webkit-details-marker{display:none}
+  .mine summary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(124,58,237,.3)}
+  .mine-head{flex:1 1 auto;min-width:0}
+  .mine-chip{flex:none;font-size:12px;font-weight:700;color:var(--violet);background:var(--violet-50);
+             padding:6px 12px;border-radius:999px;white-space:nowrap}
+  .mine-chip[hidden]{display:none}
+  .mine-chev{flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);position:relative;
+             transition:border-color .15s ease}
+  .mine-chev::after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;
+             border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+             transform:translate(-50%,-70%) rotate(45deg);transition:transform .15s ease}
+  .mine summary:hover .mine-chev{border-color:var(--violet)}
+  .mine[open] .mine-chev::after{transform:translate(-50%,-30%) rotate(225deg)}
+  .mine-body{padding:4px 24px 20px}
+  .mine-preview{margin-top:14px;font-size:13px;color:var(--muted)}
+  .mine-preview b{color:var(--ink);overflow-wrap:anywhere}
+  .mine h2{font-size:22px;font-weight:800;letter-spacing:-.015em;line-height:1.2}
+  .mine-sub{margin-top:6px;font-size:14px;color:var(--muted)}
   .mine-sub b{color:var(--ink)}
   .mine .field label{background:#fff}
   .mine input[type=text]{font:inherit;font-size:14px;font-weight:600;color:var(--ink);background:#fff;
@@ -120,7 +137,7 @@
   .mine input[type=text]::placeholder{color:#94A3B8;font-weight:500}
   .mine input[type=text]:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
   .mine-name::after{display:none}
-  .mine-opts{display:flex;flex-wrap:wrap;gap:14px 10px;margin-top:22px}
+  .mine-opts{display:flex;flex-wrap:wrap;gap:16px 10px;margin-top:8px}
   .mine-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
   .mine-status{flex:1 1 260px;font-size:13px;font-weight:600;color:var(--muted)}
   .btn{font:inherit;font-size:13px;font-weight:700;border-radius:12px;padding:12px 16px;cursor:pointer;
@@ -202,6 +219,11 @@
     #map{height:260px}
     .mine input[type=text]{width:100%}
     .mine-name{flex:1 1 100%}
+    .mine summary{flex-wrap:wrap;padding:18px}
+    .mine-head{flex:1 1 calc(100% - 52px)}
+    .mine-chip{order:3}
+    .mine-body{padding:4px 18px 18px}
+    .mine h2{font-size:19px}
   }
 
   /* "Save as PDF" prints only the visitor's calendar; printing the page any other way is unchanged. */
@@ -244,27 +266,32 @@
   <p class="maphint"><span>Pins follow your filters — click one to see what's happening in that city.</span>
     <span><i style="background:#0D9488"></i>Conference</span><span><i style="background:#E11D48"></i>Regional only</span></p>
 
-  <section class="mine" aria-labelledby="my-title">
-    <div class="mine-top">
-      <div>
-        <h2 id="my-title">My 2027 Conference Calendar</h2>
+  <details class="mine" id="my-box">
+    <summary>
+      <div class="mine-head">
+        <h2>Build Your Own 2027 Conference Calendar</h2>
         <p class="mine-sub">Mark events in the list as <b>Going</b> or <b>Maybe</b>, then save your own calendar as a PDF or a web page.</p>
       </div>
-      <div class="field mine-name"><label for="my-name">Your name</label><input type="text" id="my-name" maxlength="60" autocomplete="name" placeholder="e.g. Bob Johnson"></div>
+      <span class="mine-chip" id="my-chip" hidden></span>
+      <span class="mine-chev" aria-hidden="true"></span>
+    </summary>
+    <div class="mine-body">
+      <div class="mine-opts">
+        <div class="field mine-name"><label for="my-name">Your name</label><input type="text" id="my-name" maxlength="60" autocomplete="name" placeholder="e.g. Bob Johnson"></div>
+        <div class="field"><label for="my-paper">Paper size</label><select id="my-paper"><option value="letter">Letter</option><option value="a4">A4</option></select></div>
+        <div class="field"><label for="my-map">Map</label><select id="my-map"><option value="yes">Include the map</option><option value="no">Skip the map</option></select></div>
+        <div class="field"><label for="my-order">Order</label><select id="my-order"><option value="date">By date</option><option value="status">Going first, then Maybe</option></select></div>
+      </div>
+      <p class="mine-preview">Your calendar will be titled <b id="my-preview"></b></p>
+      <div class="mine-actions">
+        <span class="mine-status" id="my-status" aria-live="polite"></span>
+        <button class="btn primary" id="my-pdf" type="button">Save as PDF</button>
+        <button class="btn" id="my-html" type="button">Download web page</button>
+        <button class="btn quiet" id="my-reset" type="button">Reset and Start Over</button>
+      </div>
+      <p class="mine-note">Save as PDF opens your browser's print window: choose "Save as PDF" there, or print it. Your picks are remembered in this browser only.</p>
     </div>
-    <div class="mine-opts">
-      <div class="field"><label for="my-paper">Paper size</label><select id="my-paper"><option value="letter">Letter</option><option value="a4">A4</option></select></div>
-      <div class="field"><label for="my-map">Map</label><select id="my-map"><option value="yes">Include the map</option><option value="no">Skip the map</option></select></div>
-      <div class="field"><label for="my-order">Order</label><select id="my-order"><option value="date">By date</option><option value="status">Going first, then Maybe</option></select></div>
-    </div>
-    <div class="mine-actions">
-      <span class="mine-status" id="my-status" aria-live="polite"></span>
-      <button class="btn primary" id="my-pdf" type="button">Save as PDF</button>
-      <button class="btn" id="my-html" type="button">Download web page</button>
-      <button class="btn quiet" id="my-reset" type="button">Reset my calendar</button>
-    </div>
-    <p class="mine-note">Save as PDF opens your browser's print window: choose "Save as PDF" there, or print it. Your picks are remembered in this browser only.</p>
-  </section>
+  </details>
 
   <div class="filters">
     <div class="field"><label for="f-continent">Continent</label><select id="f-continent"></select></div>
@@ -378,7 +405,7 @@ const SITE = "https://ajansari.github.io/msevents";
 const STORE = "mycal-2027";
 const nameCount = EVENTS.reduce((a, ev) => (a[ev.n] = (a[ev.n] || 0) + 1, a), {});
 const keyOf = ev => nameCount[ev.n] > 1 ? `${ev.n} | ${ev.d}` : ev.n;   // picks follow the event's name
-const my = {name:"", picks:{}, map:"yes", order:"date",
+const my = {name:"", picks:{}, map:"yes", order:"date", open:false,
             paper: /^(en-(US|CA|PH)|es-(US|MX|CO|CL|VE)|fr-CA)\b/i.test(navigator.language || "") ? "letter" : "a4"};
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -389,6 +416,7 @@ try {
     if (["letter", "a4"].includes(saved.paper)) my.paper = saved.paper;
     if (["yes", "no"].includes(saved.map)) my.map = saved.map;
     if (["date", "status"].includes(saved.order)) my.order = saved.order;
+    my.open = saved.open === true;
   }
 } catch(e){}
 const saveMine = () => { try { localStorage.setItem(STORE, JSON.stringify(my)); } catch(e){} };
@@ -529,7 +557,9 @@ buildSelects(); render();
 function updateMine(){
   const all = Object.values(my.picks), going = all.filter(v => v === "going").length, maybe = all.length - going;
   const n = myList().length;
-  el("my-title").textContent = myTitle();
+  el("my-preview").textContent = myTitle();
+  el("my-chip").hidden = !all.length;
+  el("my-chip").textContent = `${going} going · ${maybe} maybe`;
   el("my-status").textContent = !all.length ? "Nothing picked yet. Use the Going and Maybe buttons in the list."
     : `${going} going · ${maybe} maybe` + (n < all.length
         ? ` · ${n} of your ${all.length} picks match${n === 1 ? "es" : ""} the filters and will be included` : "");
@@ -549,6 +579,8 @@ el("rows").addEventListener("click", e => {
   cell.closest(".row").classList.toggle("picked", !!my.picks[k]);
   saveMine(); updateMine();
 });
+el("my-box").open = my.open;                 // collapsed by default; remembers if the visitor opened it
+el("my-box").addEventListener("toggle", e => { my.open = e.target.open; saveMine(); });
 el("my-name").value = my.name;
 el("my-name").addEventListener("input", e => { my.name = e.target.value.slice(0, 60); saveMine(); updateMine(); });
 for (const k of ["paper", "map", "order"]){
