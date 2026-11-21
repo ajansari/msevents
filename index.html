@@ -84,7 +84,7 @@
 
   .card{background:#fff;border-radius:22px;padding:14px;
         box-shadow:0 18px 50px -24px rgba(15,23,42,.28),0 0 0 1px rgba(15,23,42,.04)}
-  .head,.row{display:grid;grid-template-columns:130px 1fr 126px 224px 112px;gap:14px;align-items:center}
+  .head,.row{display:grid;grid-template-columns:118px 1fr 116px 196px 96px 142px;gap:14px;align-items:center}
   .head{padding:12px 20px 14px;font-size:11px;font-weight:700;letter-spacing:.12em;
         text-transform:uppercase;color:var(--muted)}
   .row{padding:15px 20px;border-radius:16px;transition:background .15s ease,transform .15s ease}
@@ -105,6 +105,62 @@
        border-radius:999px;text-decoration:none;white-space:nowrap}
   .cfs:hover{background:#FDE68A}
   .tba{color:#94A3B8;font-weight:600}
+
+  /* My calendar: the panel, and the Going / Maybe buttons on each row */
+  .mine{background:#fff;border-radius:22px;margin:0 0 26px;
+        box-shadow:0 18px 50px -24px rgba(15,23,42,.28),0 0 0 1px rgba(15,23,42,.04)}
+  .mine summary{display:flex;align-items:center;gap:12px 16px;padding:20px 24px;cursor:pointer;list-style:none;
+                border-radius:22px;-webkit-tap-highlight-color:transparent}
+  .mine summary::-webkit-details-marker{display:none}
+  .mine summary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(124,58,237,.3)}
+  .mine-head{flex:1 1 auto;min-width:0}
+  .mine-chip{flex:none;font-size:12px;font-weight:700;color:var(--violet);background:var(--violet-50);
+             padding:6px 12px;border-radius:999px;white-space:nowrap}
+  .mine-chip[hidden]{display:none}
+  .mine-chev{flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);position:relative;
+             transition:border-color .15s ease}
+  .mine-chev::after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;
+             border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+             transform:translate(-50%,-70%) rotate(45deg);transition:transform .15s ease}
+  .mine summary:hover .mine-chev{border-color:var(--violet)}
+  .mine[open] .mine-chev::after{transform:translate(-50%,-30%) rotate(225deg)}
+  .mine-body{padding:4px 24px 20px}
+  .mine-preview{margin-top:14px;font-size:13px;color:var(--muted)}
+  .mine-preview b{color:var(--ink);overflow-wrap:anywhere}
+  .mine h2{font-size:22px;font-weight:800;letter-spacing:-.015em;line-height:1.2}
+  .mine-sub{margin-top:6px;font-size:14px;color:var(--muted)}
+  .mine-sub b{color:var(--ink)}
+  .mine .field label{background:#fff}
+  .mine input[type=text]{font:inherit;font-size:14px;font-weight:600;color:var(--ink);background:#fff;
+        border:1px solid var(--line);border-radius:12px;padding:11px 14px;width:250px;max-width:100%;
+        box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .mine input[type=text]::placeholder{color:#94A3B8;font-weight:500}
+  .mine input[type=text]:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+  .mine-name::after{display:none}
+  .mine-opts{display:flex;flex-wrap:wrap;gap:16px 10px;margin-top:8px}
+  .mine-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+  .mine-status{flex:1 1 260px;font-size:13px;font-weight:600;color:var(--muted)}
+  .btn{font:inherit;font-size:13px;font-weight:700;border-radius:12px;padding:12px 16px;cursor:pointer;
+       border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap;
+       transition:color .15s ease,border-color .15s ease,background .15s ease,opacity .15s ease}
+  .btn:hover{color:var(--violet);border-color:var(--violet)}
+  .btn.primary{background:var(--violet);border-color:var(--violet);color:#fff}
+  .btn.primary:hover{background:#6D28D9;border-color:#6D28D9;color:#fff}
+  .btn.quiet{border-color:transparent;background:none;color:var(--muted)}
+  .btn.quiet:hover{color:var(--rose);border-color:transparent}
+  .btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+  .btn:focus-visible,.pk:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(124,58,237,.3)}
+  .mine-note{margin-top:10px;font-size:12px;color:#94A3B8}
+  .pick{display:flex;gap:6px}
+  .pk{font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:6px 11px;border-radius:999px;
+      border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer;white-space:nowrap;
+      transition:color .15s ease,border-color .15s ease,background .15s ease}
+  .pk:hover{border-color:var(--violet);color:var(--violet)}
+  .pk.going.on{background:var(--violet);border-color:var(--violet);color:#fff}
+  .pk.maybe.on{background:var(--amber-50);border-color:var(--amber);color:var(--amber)}
+  .row.picked{background:linear-gradient(90deg,var(--violet-50),rgba(245,243,255,0) 55%)}
+  .row.picked:hover{background:var(--violet-50)}
+  #printdoc{display:none}
   .empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:15px}
   footer{margin-top:24px;text-align:center;font-size:12px;color:#94A3B8;line-height:1.8}
   footer a{color:var(--violet);text-decoration:none;font-weight:600}
@@ -145,6 +201,15 @@
   [data-theme="dark"] .row+.row{box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
   [data-theme="dark"] .ext{color:#64748B}
   [data-theme="dark"] .cfs:hover{background:#4A370F}
+  [data-theme="dark"] .mine{background:#141C30;box-shadow:0 18px 50px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
+  [data-theme="dark"] .mine .field label{background:#141C30}
+  [data-theme="dark"] .mine input[type=text]{background:#0E1627;box-shadow:none}
+  [data-theme="dark"] .mine input[type=text]:focus{box-shadow:0 0 0 3px rgba(167,139,250,.25)}
+  [data-theme="dark"] .btn{background:#0E1627}
+  [data-theme="dark"] .btn.primary,[data-theme="dark"] .pk.going.on{background:var(--violet);color:#0B1120}
+  [data-theme="dark"] .btn.primary:hover{background:#C4B5FD;border-color:#C4B5FD;color:#0B1120}
+  [data-theme="dark"] .btn.quiet{background:none}
+  [data-theme="dark"] .row.picked{background:linear-gradient(90deg,var(--violet-50),rgba(34,28,64,0) 55%)}
 
   @media(max-width:900px){
     .head{display:none}
@@ -152,6 +217,20 @@
     select{min-width:132px}
     h1{font-size:32px}
     #map{height:260px}
+    .mine input[type=text]{width:100%}
+    .mine-name{flex:1 1 100%}
+    .mine summary{flex-wrap:wrap;padding:18px}
+    .mine-head{flex:1 1 calc(100% - 52px)}
+    .mine-chip{order:3}
+    .mine-body{padding:4px 18px 18px}
+    .mine h2{font-size:19px}
+  }
+
+  /* "Save as PDF" prints only the visitor's calendar; printing the page any other way is unchanged. */
+  @media print{
+    body.print-mine{background:#fff !important;padding:0 !important}
+    body.print-mine > .wrap{display:none !important}
+    body.print-mine #printdoc{display:block}
   }
 </style>
 </head>
@@ -187,18 +266,45 @@
   <p class="maphint"><span>Pins follow your filters — click one to see what's happening in that city.</span>
     <span><i style="background:#0D9488"></i>Conference</span><span><i style="background:#E11D48"></i>Regional only</span></p>
 
+  <details class="mine" id="my-box">
+    <summary>
+      <div class="mine-head">
+        <h2>Build Your Own 2027 Conference Calendar</h2>
+        <p class="mine-sub">Mark events in the list as <b>Going</b> or <b>Maybe</b>, then save your own calendar as a PDF or a web page.</p>
+      </div>
+      <span class="mine-chip" id="my-chip" hidden></span>
+      <span class="mine-chev" aria-hidden="true"></span>
+    </summary>
+    <div class="mine-body">
+      <div class="mine-opts">
+        <div class="field mine-name"><label for="my-name">Your name</label><input type="text" id="my-name" maxlength="60" autocomplete="name" placeholder="e.g. Bob Johnson"></div>
+        <div class="field"><label for="my-paper">Paper size</label><select id="my-paper"><option value="letter">Letter</option><option value="a4">A4</option></select></div>
+        <div class="field"><label for="my-map">Map</label><select id="my-map"><option value="yes">Include the map</option><option value="no">Skip the map</option></select></div>
+        <div class="field"><label for="my-order">Order</label><select id="my-order"><option value="date">By date</option><option value="status">Going first, then Maybe</option></select></div>
+      </div>
+      <p class="mine-preview">Your calendar will be titled <b id="my-preview"></b></p>
+      <div class="mine-actions">
+        <span class="mine-status" id="my-status" aria-live="polite"></span>
+        <button class="btn primary" id="my-pdf" type="button">Save as PDF</button>
+        <button class="btn" id="my-html" type="button">Download web page</button>
+        <button class="btn quiet" id="my-reset" type="button">Reset and Start Over</button>
+      </div>
+      <p class="mine-note">Save as PDF opens your browser's print window: choose "Save as PDF" there, or print it. Your picks are remembered in this browser only.</p>
+    </div>
+  </details>
+
   <div class="filters">
     <div class="field"><label for="f-continent">Continent</label><select id="f-continent"></select></div>
     <div class="field"><label for="f-country">Country</label><select id="f-country"></select></div>
     <div class="field"><label for="f-city">City</label><select id="f-city"></select></div>
     <div class="field"><label for="f-month">Month</label><select id="f-month"></select></div>
     <div class="field"><label for="f-type">Type</label><select id="f-type"></select></div>
-    <button class="reset" id="reset">Reset</button>
+    <button class="reset" id="reset">Reset filters</button>
   </div>
   <div class="count" id="count"></div>
 
   <div class="card">
-    <div class="head"><div>Date</div><div>Event</div><div>Type</div><div>City</div><div>Speakers</div></div>
+    <div class="head"><div>Date</div><div>Event</div><div>Type</div><div>City</div><div>Speakers</div><div>My plan</div></div>
     <div id="rows"></div>
   </div>
 
@@ -214,6 +320,7 @@
     All other names and logos belong to their respective owners.</p>
   </footer>
 </div>
+<div id="printdoc"></div>
 
 <script>
 const ROADSHOW = "https://dynamicscommunities.com/summit-roadshow/";
@@ -293,6 +400,30 @@ const el = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const href = u => /^https?:\/\//i.test(u) ? esc(u) : "#";
 
+// "My calendar": the visitor's name, picks and export options, remembered in this browser only.
+const SITE = "https://ajansari.github.io/msevents";
+const STORE = "mycal-2027";
+const nameCount = EVENTS.reduce((a, ev) => (a[ev.n] = (a[ev.n] || 0) + 1, a), {});
+const keyOf = ev => nameCount[ev.n] > 1 ? `${ev.n} | ${ev.d}` : ev.n;   // picks follow the event's name
+const my = {name:"", picks:{}, map:"yes", order:"date", open:false,
+            paper: /^(en-(US|CA|PH)|es-(US|MX|CO|CL|VE)|fr-CA)\b/i.test(navigator.language || "") ? "letter" : "a4"};
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+  if (saved && typeof saved === "object"){
+    if (typeof saved.name === "string") my.name = saved.name.slice(0, 60);
+    const known = new Set(EVENTS.map(keyOf));
+    for (const [k, v] of Object.entries(saved.picks || {})) if (known.has(k) && (v === "going" || v === "maybe")) my.picks[k] = v;
+    if (["letter", "a4"].includes(saved.paper)) my.paper = saved.paper;
+    if (["yes", "no"].includes(saved.map)) my.map = saved.map;
+    if (["date", "status"].includes(saved.order)) my.order = saved.order;
+    my.open = saved.open === true;
+  }
+} catch(e){}
+const saveMine = () => { try { localStorage.setItem(STORE, JSON.stringify(my)); } catch(e){} };
+const myTitle = () => `${my.name.trim() ? my.name.trim() + "’s" : "My"} 2027 Conference Calendar`;
+// The events that go into the visitor's calendar: picked, and matching the filters in use.
+const myList = () => EVENTS.filter(ev => my.picks[keyOf(ev)] && matches(ev, activeFilters(null)));
+
 const PIN = c => `<svg width="22" height="28" viewBox="0 0 22 28"><path d="M11 27S2 16.6 2 10.5a9 9 0 0 1 18 0C20 16.6 11 27 11 27z" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="11" cy="10.5" r="3.2" fill="#fff"/></svg>`;
 const WORLD = {w:-128, e:158, n:68, s:-42};   // default view, degrees
 let lastList = [];
@@ -302,15 +433,9 @@ function closePop(){
   document.querySelectorAll(".pin.on").forEach(p => p.classList.remove("on"));
 }
 
-function drawMap(list){
-  lastList = list;
-  closePop();
-  const box = el("map"), W = box.clientWidth, H = box.clientHeight, aspect = W / H;
-  const byCity = {};
-  list.forEach(ev => { if (COORDS[ev.city]) (byCity[ev.city] ||= []).push(ev); });
-  const cities = Object.keys(byCity);
-
-  // Frame the map: whole world by default, zoomed to the pins when filters narrow them down.
+// Frame the map: whole world by default, zoomed to the pins when they cover only part of it.
+// Returns the left edge (x0) and top edge (yTop) in degrees, and the width and height in degrees.
+function mapFrame(cities, aspect){
   let b = WORLD;
   if (cities.length && cities.length < Object.keys(COORDS).length){
     const lats = cities.map(c => COORDS[c][0]), lons = cities.map(c => COORDS[c][1]);
@@ -324,6 +449,17 @@ function drawMap(list){
   let x0 = (b.w + b.e) / 2 - w / 2;
   x0 = Math.max(-180, Math.min(180 - w, x0));
   const yTop = (b.n + b.s) / 2 + h / 2 + (b === WORLD ? 0 : h * .06);   // latitude at the top edge
+  return {x0, yTop, w, h};
+}
+
+function drawMap(list){
+  lastList = list;
+  closePop();
+  const box = el("map"), W = box.clientWidth, H = box.clientHeight, aspect = W / H;
+  const byCity = {};
+  list.forEach(ev => { if (COORDS[ev.city]) (byCity[ev.city] ||= []).push(ev); });
+  const cities = Object.keys(byCity);
+  const {x0, yTop, w, h} = mapFrame(cities, aspect);
   el("world").setAttribute("viewBox", `${x0*10} ${-yTop*10} ${w*10} ${h*10}`);
 
   el("pins").innerHTML = "";
@@ -390,8 +526,8 @@ function buildSelects(){
 
 function render(){
   const list = EVENTS.filter(ev => matches(ev, activeFilters(null)));
-  el("rows").innerHTML = list.length ? list.map(ev => `
-    <div class="row">
+  el("rows").innerHTML = list.length ? list.map(ev => { const k = keyOf(ev), p = my.picks[k]; return `
+    <div class="row${p ? " picked" : ""}">
       <div class="date${ev.d === "TBA" ? " tba" : ""}">${esc(ev.d)}</div>
       <div class="name">${ev.url
         ? `<a class="ev" href="${href(ev.url)}" target="_blank" rel="noopener">${esc(ev.n)}</a>
@@ -401,10 +537,13 @@ function render(){
       <div><span class="chip ${ev.t === "Conference" ? "conference" : "regional"}">${esc(ev.t)}</span></div>
       <div class="city${ev.city === "TBA" ? " tba" : ""}">${esc(ev.loc)}</div>
       <div>${ev.cfs ? `<a class="cfs" href="${href(ev.cfs)}" target="_blank" rel="noopener">Speak →</a>` : ""}</div>
-    </div>`).join("")
+      <div class="pick" data-k="${esc(k)}">${["going", "maybe"].map(v =>
+        `<button type="button" class="pk ${v}${p === v ? " on" : ""}" data-v="${v}" aria-pressed="${p === v}" aria-label="${v === "going" ? "Going to" : "Maybe going to"} ${esc(ev.n)}">${v === "going" ? "Going" : "Maybe"}</button>`).join("")}</div>
+    </div>`; }).join("")
     : `<div class="empty">No events match these filters.</div>`;
   el("count").textContent = `${list.length} of ${EVENTS.length} events`;
   drawMap(list);
+  updateMine();
 }
 
 for (const k in F) el(F[k]).addEventListener("change", () => { buildSelects(); render(); });
@@ -413,6 +552,196 @@ el("reset").addEventListener("click", () => {
   buildSelects(); render();
 });
 buildSelects(); render();
+
+// ---------- My calendar ----------
+function updateMine(){
+  const all = Object.values(my.picks), going = all.filter(v => v === "going").length, maybe = all.length - going;
+  const n = myList().length;
+  el("my-preview").textContent = myTitle();
+  el("my-chip").hidden = !all.length;
+  el("my-chip").textContent = `${going} going · ${maybe} maybe`;
+  el("my-status").textContent = !all.length ? "Nothing picked yet. Use the Going and Maybe buttons in the list."
+    : `${going} going · ${maybe} maybe` + (n < all.length
+        ? ` · ${n} of your ${all.length} picks match${n === 1 ? "es" : ""} the filters and will be included` : "");
+  el("my-pdf").disabled = el("my-html").disabled = !n;
+  el("my-reset").disabled = !all.length && !my.name;
+}
+
+el("rows").addEventListener("click", e => {
+  const b = e.target.closest(".pk");
+  if (!b) return;
+  const cell = b.parentElement, k = cell.dataset.k;
+  if (my.picks[k] === b.dataset.v) delete my.picks[k]; else my.picks[k] = b.dataset.v;   // click again to clear
+  cell.querySelectorAll(".pk").forEach(x => {
+    const on = my.picks[k] === x.dataset.v;
+    x.classList.toggle("on", on); x.setAttribute("aria-pressed", on);
+  });
+  cell.closest(".row").classList.toggle("picked", !!my.picks[k]);
+  saveMine(); updateMine();
+});
+el("my-box").open = my.open;                 // collapsed by default; remembers if the visitor opened it
+el("my-box").addEventListener("toggle", e => { my.open = e.target.open; saveMine(); });
+el("my-name").value = my.name;
+el("my-name").addEventListener("input", e => { my.name = e.target.value.slice(0, 60); saveMine(); updateMine(); });
+for (const k of ["paper", "map", "order"]){
+  el("my-" + k).value = my[k];
+  el("my-" + k).addEventListener("change", e => { my[k] = e.target.value; saveMine(); });
+}
+el("my-reset").addEventListener("click", () => {
+  if (!confirm("Clear your name and all your Going and Maybe picks?")) return;
+  my.name = ""; my.picks = {};
+  el("my-name").value = "";
+  saveMine(); render();
+});
+
+// The calendar document. The PDF and the downloaded web page use the same markup and styles.
+const docCss = () => `
+@page{size:${my.paper === "letter" ? "letter" : "A4"};margin:14mm 13mm}
+.mc-doc{font-family:Inter,"Segoe UI",-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;color:#0F172A;
+  background:#fff;font-size:9.5pt;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact;
+  -webkit-font-smoothing:antialiased}
+.mc-doc *{box-sizing:border-box;margin:0;padding:0}
+.mc-doc a{color:inherit;text-decoration:none}
+.mc-top{display:flex;justify-content:space-between;align-items:center;gap:16pt;padding-bottom:10pt;margin-bottom:16pt;border-bottom:1px solid #E2E8F0}
+.mc-logos{display:flex;gap:14pt;align-items:center}
+.mc-logos img{height:25pt;width:auto;display:block}
+.mc-src{font-size:8pt;color:#64748B;text-align:right;line-height:1.5}
+.mc-doc .mc-src a{color:#7C3AED;font-weight:600}
+.mc-eyebrow{font-size:8pt;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#7C3AED;margin-bottom:5pt}
+.mc-doc h1{font-size:24pt;line-height:1.1;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
+.mc-doc h1 span{color:#7C3AED;background:none;-webkit-background-clip:border-box;background-clip:border-box}
+.mc-sub{margin-top:7pt;font-size:10pt;color:#64748B;font-weight:600}
+.mc-mapbox{margin-top:14pt;break-inside:avoid;page-break-inside:avoid}
+.mc-map{display:block;width:100%;height:auto;background:#EEF3FB;border:1px solid #D5DEEC;border-radius:10pt}
+.mc-land path{fill:#fff;stroke:#B8C5D9;stroke-width:.6;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.mc-legend{margin-top:6pt;font-size:8pt;color:#64748B;display:flex;gap:14pt}
+.mc-legend i{display:inline-block;width:7pt;height:7pt;border-radius:50%;margin-right:4pt}
+.mc-h{font-size:13pt;font-weight:800;margin-top:20pt;break-after:avoid;page-break-after:avoid}
+.mc-h span{font-size:9pt;font-weight:700;color:#64748B;margin-left:6pt}
+.mc-table{width:100%;border-collapse:collapse;margin-top:12pt}
+.mc-h + .mc-table{margin-top:8pt}
+.mc-table thead{display:table-header-group}
+.mc-table th{text-align:left;font-size:7.5pt;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#64748B;
+  padding:6pt 8pt;border-bottom:1.5px solid #CBD5E1;white-space:nowrap}
+.mc-table td{padding:6.5pt 8pt;border-bottom:1px solid #E8EDF4;vertical-align:top}
+.mc-table th:nth-child(1){width:15%}.mc-table th:nth-child(3){width:14%}.mc-table th:nth-child(4){width:22%}.mc-table th:nth-child(5){width:10%}
+.mc-table tr{break-inside:avoid;page-break-inside:avoid}
+.mc-date{font-weight:700;color:#7C3AED;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mc-name{font-weight:600}
+.mc-doc .mc-name a{border-bottom:1px solid #CBD5E1}
+.mc-tag{display:block;font-size:7.5pt;font-weight:500;color:#64748B;margin-top:2pt}
+.mc-doc a.mc-cfs{display:block;width:fit-content;margin-top:3pt;font-size:7.5pt;font-weight:700;color:#B45309}
+.mc-chip{display:inline-block;font-size:7pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3pt 7pt;border-radius:99pt;white-space:nowrap}
+.mc-chip.conference{color:#0D9488;background:#CCFBF1}
+.mc-chip.regional{color:#E11D48;background:#FFE4E6}
+.mc-chip.going{color:#fff;background:#7C3AED}
+.mc-chip.maybe{color:#B45309;background:#FEF3C7}
+.mc-foot{margin-top:18pt;padding-top:8pt;border-top:1px solid #E2E8F0;font-size:7.5pt;line-height:1.6;color:#94A3B8;break-inside:avoid;page-break-inside:avoid}
+.mc-doc .mc-foot a{color:#7C3AED;font-weight:600}`;
+
+function docMap(list){
+  const byCity = {};
+  list.forEach(ev => { if (COORDS[ev.city]) (byCity[ev.city] ||= []).push(ev); });
+  const cities = Object.keys(byCity);
+  if (!cities.length) return "";
+  const {x0, yTop, w, h} = mapFrame(cities, 2.8);
+  const s = w * 10 / 700 * (18 / 22);          // pins about 18pt wide on a full-width map
+  const pins = cities.sort((a, b) => COORDS[b][0] - COORDS[a][0]).map(city => {
+    const [lat, lon] = COORDS[city], going = byCity[city].some(ev => my.picks[keyOf(ev)] === "going");
+    return `<g transform="translate(${(lon*10 - 11*s).toFixed(1)} ${(-lat*10 - 27*s).toFixed(1)}) scale(${s.toFixed(3)})"><path d="M11 27S2 16.6 2 10.5a9 9 0 0 1 18 0C20 16.6 11 27 11 27z" fill="${going ? "#7C3AED" : "#D97706"}" stroke="#fff" stroke-width="2"/><circle cx="11" cy="10.5" r="3.2" fill="#fff"/></g>`;
+  }).join("");
+  return `<div class="mc-mapbox"><svg class="mc-map" xmlns="http://www.w3.org/2000/svg" viewBox="${x0*10} ${-yTop*10} ${w*10} ${h*10}" role="img" aria-label="Map of the events in this calendar"><g class="mc-land">${el("world").innerHTML}</g>${pins}</svg>
+    <p class="mc-legend"><span><i style="background:#7C3AED"></i>Going</span><span><i style="background:#D97706"></i>Maybe</span></p></div>`;
+}
+
+function docTable(list, withPlan){
+  return `<table class="mc-table"><thead><tr><th>Date</th><th>Event</th><th>Type</th><th>City</th>${withPlan ? "<th>Plan</th>" : ""}</tr></thead><tbody>` +
+    list.map(ev => { const p = my.picks[keyOf(ev)]; return `<tr>
+      <td class="mc-date">${esc(ev.d)}</td>
+      <td class="mc-name">${ev.url ? `<a href="${href(ev.url)}">${esc(ev.n)}</a>` : esc(ev.n)}${
+        ev.tag ? `<span class="mc-tag">${esc(ev.tag)}</span>` : ""}${
+        ev.cfs ? `<a class="mc-cfs" href="${href(ev.cfs)}">Call for speakers →</a>` : ""}</td>
+      <td><span class="mc-chip ${ev.t === "Conference" ? "conference" : "regional"}">${esc(ev.t)}</span></td>
+      <td>${esc(ev.loc)}${ev.country !== "TBA" ? `<span class="mc-tag">${esc(ev.country)}</span>` : ""}</td>
+      ${withPlan ? `<td><span class="mc-chip ${p}">${p === "going" ? "Going" : "Maybe"}</span></td>` : ""}
+    </tr>`; }).join("") + "</tbody></table>";
+}
+
+function docBody(){
+  const list = myList(), name = my.name.trim();
+  const going = list.filter(ev => my.picks[keyOf(ev)] === "going"), maybe = list.filter(ev => my.picks[keyOf(ev)] === "maybe");
+  const filters = Object.values(activeFilters(null));
+  const logos = [...document.querySelectorAll(".brands img")].map(i => `<img src="${i.src}" alt="${esc(i.alt)}">`).join("");
+  const made = new Date().toLocaleDateString(undefined, {year:"numeric", month:"long", day:"numeric"});
+  return `<div class="mc-doc">
+    <div class="mc-top"><div class="mc-logos">${logos}</div>
+      <div class="mc-src">2027 Microsoft Community Calendar<br><a href="${SITE}">${SITE.replace("https://", "")}</a></div></div>
+    <p class="mc-eyebrow">Save the dates</p>
+    <h1>${name ? esc(name) + "’s" : "My"} <span>2027 Conference</span> Calendar</h1>
+    <p class="mc-sub">${[`${going.length} going`, `${maybe.length} maybe`].concat(filters.length ? [`Filtered to ${esc(filters.join(", "))}`] : []).join(" · ")}</p>
+    ${my.map === "yes" ? docMap(list) : ""}
+    ${my.order === "status"
+      ? (going.length ? `<h2 class="mc-h">Going<span>${going.length}</span></h2>${docTable(going, false)}` : "") +
+        (maybe.length ? `<h2 class="mc-h">Maybe<span>${maybe.length}</span></h2>${docTable(maybe, false)}` : "")
+      : docTable(list, true)}
+    <p class="mc-foot">All dates are in 2027 and subject to change. Month-only dates are preliminary. Made on ${esc(made)} with the
+      2027 Microsoft Community Calendar, <a href="${SITE}">${SITE.replace("https://", "")}</a>.<br>
+      An independent community project, not affiliated with or endorsed by Microsoft.</p>
+  </div>`;
+}
+
+// PDF: fill the print-only container, then open the browser's print window.
+let restorePrint = null;
+function endPrint(){ if (restorePrint){ restorePrint(); restorePrint = null; } }
+function preparePrint(){
+  endPrint();
+  const root = document.documentElement, title = document.title, theme = root.dataset.theme;
+  const style = document.createElement("style");
+  style.textContent = docCss();
+  document.head.appendChild(style);
+  el("printdoc").innerHTML = docBody();
+  document.body.classList.add("print-mine");
+  document.title = myTitle();                  // browsers suggest this as the PDF's file name
+  delete root.dataset.theme;                   // always print on white
+  restorePrint = () => {
+    document.body.classList.remove("print-mine");
+    el("printdoc").innerHTML = ""; style.remove();
+    document.title = title;
+    if (theme) root.dataset.theme = theme;
+  };
+}
+window.addEventListener("afterprint", endPrint);
+el("my-pdf").addEventListener("click", () => { if (myList().length){ preparePrint(); window.print(); } });
+
+// Web page: one self-contained HTML file with the styles, logos and map inside it.
+function docHtml(){
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(myTitle())}</title>
+<style>
+body{margin:0;background:#fff}${docCss()}
+@media screen{.mc-doc{max-width:900px;margin:0 auto;padding:36px 24px 48px}}
+@media screen and (max-width:640px){.mc-doc{font-size:9.5pt;padding:24px 14px 36px}.mc-doc h1{font-size:19pt}.mc-table th,.mc-table td{padding:6pt 5pt}}
+</style>
+</head>
+<body>
+${docBody()}
+</body>
+</html>
+`;
+}
+el("my-html").addEventListener("click", () => {
+  if (!myList().length) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([docHtml()], {type:"text/html"}));
+  a.download = myTitle().toLowerCase().replace(/[’']/g, "").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") + ".html";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+updateMine();
 
 // Night mode: day is the default, and the visitor's choice is remembered on this device.
 function setTheme(dark){

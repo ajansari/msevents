@@ -13,10 +13,19 @@ Created by AJ Ansari, Microsoft MVP ([onlycopilotfans.com](https://onlycopilotfa
 ## Features
 
 - **Event table** listing the date, name, type (Conference or Regional), location and a "Speak →" link where a call for speakers is open.
-- **Linked filters** for continent, country, city, month and type. Each dropdown only offers values that still match the other filters, and a Reset button clears them all.
+- **Linked filters** for continent, country, city, month and type. Each dropdown only offers values that still match the other filters, and a **Reset filters** button clears them all.
 - **World map** with one pin per city. Teal pins mark cities with at least one conference and rose pins mark cities with regional events only. Clicking a pin lists that city's events.
 - **Auto-zoom**: the map shows the whole world by default and zooms to the remaining pins as filters narrow the list.
 - **Responsive layout** that works on phones as well as desktops.
+- **Build Your Own 2027 Conference Calendar**: visitors build a personal calendar and take it with them. The panel is collapsed until they open it.
+  - Each event has **Going** and **Maybe** buttons. Clicking the active one again clears it.
+  - Entering a name titles the calendar, for example "Bob Johnson's 2027 Conference Calendar".
+  - **Save as PDF** opens the browser's print window with a print layout on a white background, in Letter or A4, with clean page breaks.
+  - **Download web page** saves the same calendar as one self-contained HTML file.
+  - Both can include or skip the map, and list events by date or as Going first, then Maybe.
+  - Only events marked Going or Maybe are included, and only those matching the filters in use.
+  - **Reset and Start Over** clears the name and picks.
+  - Name, picks and options are remembered in the visitor's browser only (`localStorage`). Nothing is sent anywhere. Picks follow an event's name, so renaming an event drops visitors' picks for it.
 
 ## Running it
 
