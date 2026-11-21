@@ -42,9 +42,9 @@
   .gh:hover{color:var(--violet);border-color:var(--violet)}
   .gh svg{display:block;flex:none}
 
-  #map{position:relative;height:420px;margin:26px 0 8px;border-radius:20px;
+  #map{position:relative;height:420px;margin:26px 0 8px;border:1px solid #DDD6FE;border-radius:20px;
        box-shadow:0 18px 50px -24px rgba(15,23,42,.28),0 0 0 1px rgba(15,23,42,.04)}
-  #map svg.world{position:absolute;inset:0;width:100%;height:100%;border-radius:20px;background:#E6EDF9;display:block}
+  #map svg.world{position:absolute;inset:0;width:100%;height:100%;border-radius:19px;background:#E6EDF9;display:block}
   #map svg.world path{fill:#fff;stroke:#C3CEDF;stroke-width:.7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
   .pin{position:absolute;width:22px;height:28px;padding:0;border:0;background:none;cursor:pointer;
        transform:translate(-50%,-100%);transform-origin:50% 100%;transition:transform .12s ease;
@@ -190,7 +190,7 @@
     background:#FAF9FF;box-shadow:0 0 0 100vmax #FAF9FF;clip-path:inset(-100vmax -100vmax 0 -100vmax)}
   [data-theme="dark"] .theme .sun{display:block}
   [data-theme="dark"] .theme .moon{display:none}
-  [data-theme="dark"] #map{box-shadow:0 18px 50px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
+  [data-theme="dark"] #map{border-color:#3A2F6B;box-shadow:0 18px 50px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
   [data-theme="dark"] #map svg.world{background:#0F182B}
   [data-theme="dark"] #map svg.world path{fill:#222E47;stroke:#3B4B6B}
   [data-theme="dark"] #pop{background:#1A2338;box-shadow:0 12px 32px -8px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
