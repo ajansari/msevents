@@ -4,7 +4,7 @@ A single-page calendar of 2027 Microsoft events, community conferences and regio
 
 **Live site: [ajansari.github.io/msevents](https://ajansari.github.io/msevents)**
 
-[![The 2027 Microsoft Community Calendar, showing the world map with conference pins above the filters and event table](assets/screenshot.png)](https://ajansari.github.io/msevents)
+[![The 2027 Microsoft Community Calendar, showing the world map with event pins, the Build Your Own 2027 Conference Calendar box, the filters and the event table with Going and Maybe buttons](assets/screenshot.png)](https://ajansari.github.io/msevents)
 
 Visitors can filter events by continent, country, city, month and type, see them pinned on a world map, and jump to each event's website or call for speakers.
 
